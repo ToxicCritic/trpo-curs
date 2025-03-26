@@ -10,26 +10,55 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func RegisterHandler(c *gin.Context, db *sql.DB) {
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-		Email    string `json:"email"`
-		Role     string `json:"role"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
+func LoginFormHandler(c *gin.Context, db *sql.DB) {
+	username := c.PostForm("username")
+	password := c.PostForm("password")
 
-	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	var user models.User
+	err := db.QueryRow(`
+        SELECT id, username, password, email, role
+        FROM users
+        WHERE username=$1
+    `, username).Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		c.HTML(http.StatusUnauthorized, "login.html", gin.H{
+			"error": "Пользователь не найден",
+		})
 		return
 	}
 
-	if req.Role != "admin" && req.Role != "teacher" && req.Role != "student" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role"})
+	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
+		c.HTML(http.StatusUnauthorized, "login.html", gin.H{
+			"error": "Неверный пароль",
+		})
+		return
+	}
+
+	token, err := middleware.GenerateJWT(user)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "login.html", gin.H{
+			"error": "Ошибка генерации токена",
+		})
+		return
+	}
+
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"Title":   "Добро пожаловать!",
+		"Message": "Ваш токен: " + token,
+	})
+}
+
+func RegisterFormHandler(c *gin.Context, db *sql.DB) {
+	username := c.PostForm("username")
+	password := c.PostForm("password")
+	email := c.PostForm("email")
+	role := c.PostForm("role") // admin, teacher, student
+
+	hashedPwd, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "index.html", gin.H{
+			"error": "Ошибка хэширования пароля",
+		})
 		return
 	}
 
@@ -37,53 +66,15 @@ func RegisterHandler(c *gin.Context, db *sql.DB) {
 	err = db.QueryRow(`
         INSERT INTO users (username, password, email, role)
         VALUES ($1, $2, $3, $4) RETURNING id
-    `, req.Username, string(hashedPwd), req.Email, req.Role).Scan(&userID)
+    `, username, string(hashedPwd), email, role).Scan(&userID)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		c.HTML(http.StatusConflict, "index.html", gin.H{
+			"error": "Ошибка при регистрации: " + err.Error(),
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Registration successful",
-		"user_id": userID,
-	})
-}
-
-func LoginHandler(c *gin.Context, db *sql.DB) {
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	var user models.User
-	err := db.QueryRow(`
-        SELECT id, username, password, email, role
-        FROM users
-        WHERE username=$1
-    `, req.Username).Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
-
-	if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-		return
-	}
-
-	tokenString, err := middleware.GenerateJWT(user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"token":   tokenString,
-		"role":    user.Role,
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"Message": "Регистрация успешно завершена!",
 	})
 }
