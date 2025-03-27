@@ -54,3 +54,36 @@ type Request struct {
 	DesiredChange string `json:"desired_change"`
 	Status        string `json:"status"`
 }
+
+type ScheduleDisplay struct {
+	ID          int       `json:"id"`
+	SubjectName string    `json:"subject_name"`
+	TeacherName string    `json:"teacher_name"`
+	RoomNumber  string    `json:"room_number"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type SubjectDisplay struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type TeacherDisplay struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type ClassroomDisplay struct {
+	ID         int    `json:"id"`
+	RoomNumber string `json:"room_number"`
+}
+
+type RequestDisplay struct {
+	ID            int    `json:"id"`
+	UserID        int    `json:"user_id"`
+	ScheduleID    int    `json:"schedule_id"`
+	DesiredChange string `json:"desired_change"`
+	Status        string `json:"status"`
+}

@@ -8,57 +8,135 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <!-- Шапка для администратора с зеленым фоном и логотипом -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-success">
     <div class="container-fluid">
       <a class="navbar-brand" href="/admin/schedules">
         <img src="/resources/logo.png" alt="Логотип" style="height:40px;">
       </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-              data-bs-target="#navbarAdmin" aria-controls="navbarAdmin"
-              aria-expanded="false" aria-label="Toggle navigation">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarAdmin" aria-controls="navbarAdmin" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarAdmin">
         <ul class="navbar-nav ms-auto">
-          <li class="nav-item">
-            <a class="nav-link" href="/admin/schedules">Расписание</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/admin/requests">Запросы</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/admin/users">Пользователи</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="/logout">Выйти</a>
-          </li>
+          <li class="nav-item"><a class="nav-link" href="/admin/schedules">Расписание</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/requests">Запросы</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/users">Пользователи</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Выйти</a></li>
         </ul>
       </div>
     </div>
   </nav>
+  
   <div class="container mt-4">
     <h2>Управление расписанием (Admin)</h2>
-
+    
+    <!-- Форма фильтрации: администратор может фильтровать по группам, преподавателю и аудитории -->
+    <form method="GET" action="/admin/schedules" class="row g-3 mb-4">
+      <div class="col-md-3">
+        <label class="form-label">Группа</label>
+        <input type="text" name="group" class="form-control" value="{{.GroupFilter}}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Преподаватель</label>
+        <input type="text" name="teacher" class="form-control" value="{{.TeacherFilter}}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Аудитория</label>
+        <input type="text" name="classroom" class="form-control" value="{{.ClassroomFilter}}">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Применить фильтр</button>
+      </div>
+    </form>
+    
     {{ if .Error }}
       <div class="alert alert-danger">{{.Error}}</div>
     {{ end }}
-
-    <!-- Таблица расписания -->
-    {{ if .Schedules }}
-      <table class="table table-bordered table-hover">
-        <!-- thead, tbody, etc -->
+    
+    <!-- Расписание, сгруппированное по дням недели -->
+    {{ range $day, $schedules := .Schedules }}
+      <h3>{{ $day }}</h3>
+      <table class="table table-bordered table-hover mb-4">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Предмет</th>
+            <th>Преподаватель</th>
+            <th>Аудитория</th>
+            <th>Начало</th>
+            <th>Окончание</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range $schedules }}
+            <tr>
+              <td>{{ .ID }}</td>
+              <td>{{ .SubjectName }}</td>
+              <td>{{ .TeacherName }}</td>
+              <td>{{ .RoomNumber }}</td>
+              <td>{{ formatTime .StartTime }}</td>
+              <td>{{ formatTime .EndTime }}</td>
+              <td>
+                <!-- Кнопки редактирования и удаления -->
+                <form class="d-inline" method="POST" action="/admin/schedules/{{ .ID }}?_method=PUT">
+                  <button class="btn btn-sm btn-primary">Редактировать</button>
+                </form>
+                <form class="d-inline" method="POST" action="/admin/schedules/{{ .ID }}?_method=DELETE">
+                  <button class="btn btn-sm btn-danger">Удалить</button>
+                </form>
+              </td>
+            </tr>
+          {{ end }}
+        </tbody>
       </table>
     {{ else }}
       <p>Нет занятий.</p>
     {{ end }}
-
-    <!-- Форма добавления записи -->
+    
     <hr>
-    <form method="POST" action="/admin/schedules">
-      ...
+    <!-- Форма добавления нового занятия с выпадающими списками -->
+    <h4>Добавить новое занятие</h4>
+    <form method="POST" action="/admin/schedules" class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Предмет</label>
+        <select name="subject_id" class="form-select" required>
+          <option value="">Выберите предмет</option>
+          {{ range .Subjects }}
+            <option value="{{ .ID }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Преподаватель</label>
+        <select name="teacher_id" class="form-select" required>
+          <option value="">Выберите преподавателя</option>
+          {{ range .Teachers }}
+            <option value="{{ .ID }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Аудитория</label>
+        <select name="classroom_id" class="form-select" required>
+          <option value="">Выберите аудиторию</option>
+          {{ range .Classrooms }}
+            <option value="{{ .ID }}">{{ .RoomNumber }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Начало (YYYY-MM-DDTHH:MM)</label>
+        <input type="datetime-local" name="start_time" class="form-control" required>
+      </div>
+      <!-- Время окончания вычисляется автоматически -->
+      <div class="col-12">
+        <button type="submit" class="btn btn-custom">Создать</button>
+      </div>
     </form>
   </div>
-
+  
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"scheduleApp/internal/models"
 	"strconv"
@@ -46,65 +47,158 @@ func RenderSchedulesPage(c *gin.Context, db *sql.DB) {
 	})
 }
 
-// RenderAdminSchedulesPage рендерит страницу управления расписанием для админа
-func RenderAdminSchedulesPage(c *gin.Context, db *sql.DB) {
-	rows, err := db.Query(`
-        SELECT id, subject_id, teacher_id, classroom_id, start_time, end_time, created_at
-        FROM schedule
-        ORDER BY start_time
-    `)
+func RenderAdminSchedulesPageWithFilters(c *gin.Context, db *sql.DB) {
+	// Считываем фильтры из query-параметров (для админа доступны все: group, teacher, classroom)
+	groupFilter := c.Query("group")
+	teacherFilter := c.Query("teacher")
+	classroomFilter := c.Query("classroom")
+
+	// Формируем динамический WHERE
+	whereClauses := []string{}
+	args := []interface{}{}
+	argIndex := 1
+
+	if groupFilter != "" {
+		// Фильтр по группам через таблицу связи schedule_groups
+		whereClauses = append(whereClauses, fmt.Sprintf("sg.group_id = $%d", argIndex))
+		args = append(args, groupFilter)
+		argIndex++
+	}
+	if teacherFilter != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("s.teacher_id = $%d", argIndex))
+		args = append(args, teacherFilter)
+		argIndex++
+	}
+	if classroomFilter != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("s.classroom_id = $%d", argIndex))
+		args = append(args, classroomFilter)
+		argIndex++
+	}
+
+	// Запрос с JOIN для получения связанных значений
+	query := `
+		SELECT s.id, sub.name as subject_name, t.name as teacher_name, c.room_number,
+		       s.start_time, s.end_time, s.created_at
+		FROM schedule s
+		JOIN subjects sub ON s.subject_id = sub.id
+		JOIN teachers t ON s.teacher_id = t.id
+		JOIN classrooms c ON s.classroom_id = c.id
+		LEFT JOIN schedule_groups sg ON s.id = sg.schedule_id
+	`
+	if len(whereClauses) > 0 {
+		query += " WHERE " + joinClauses(whereClauses, " AND ")
+	}
+	query += " ORDER BY s.start_time;"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "schedules_admin", gin.H{
 			"Title": "Управление расписанием (Admin)",
-			"Error": err.Error(),
+			"Error": "Ошибка запроса: " + err.Error(),
 		})
 		return
 	}
 	defer rows.Close()
 
-	var schedules []models.Schedule
+	// Группируем расписание по дню недели
+	groupedSchedules := make(map[string][]models.ScheduleDisplay)
 	for rows.Next() {
-		var s models.Schedule
-		if err := rows.Scan(&s.ID, &s.SubjectID, &s.TeacherID, &s.ClassroomID,
-			&s.StartTime, &s.EndTime, &s.CreatedAt); err != nil {
+		var sch models.ScheduleDisplay
+		err := rows.Scan(&sch.ID, &sch.SubjectName, &sch.TeacherName, &sch.RoomNumber,
+			&sch.StartTime, &sch.EndTime, &sch.CreatedAt)
+		if err != nil {
 			c.HTML(http.StatusInternalServerError, "schedules_admin", gin.H{
 				"Title": "Управление расписанием (Admin)",
-				"Error": err.Error(),
+				"Error": "Ошибка сканирования строки: " + err.Error(),
 			})
 			return
 		}
-		schedules = append(schedules, s)
+		day := sch.StartTime.Weekday().String()
+		groupedSchedules[day] = append(groupedSchedules[day], sch)
 	}
 
+	// Передаем в шаблон: сгруппированное расписание и активные фильтры
 	c.HTML(http.StatusOK, "schedules_admin", gin.H{
-		"Title":     "Управление расписанием (Admin)",
-		"Schedules": schedules,
+		"Title":           "Управление расписанием (Admin)",
+		"Schedules":       groupedSchedules,
+		"GroupFilter":     groupFilter,
+		"TeacherFilter":   teacherFilter,
+		"ClassroomFilter": classroomFilter,
 	})
 }
 
-// CreateScheduleFormHandler создает новую запись в расписании (админ)
+func joinClauses(clauses []string, sep string) string {
+	result := ""
+	for i, clause := range clauses {
+		if i > 0 {
+			result += sep
+		}
+		result += clause
+	}
+	return result
+}
+
 func CreateScheduleFormHandler(c *gin.Context, db *sql.DB) {
-	subjectID, _ := strconv.Atoi(c.PostForm("subject_id"))
-	teacherID, _ := strconv.Atoi(c.PostForm("teacher_id"))
-	classroomID, _ := strconv.Atoi(c.PostForm("classroom_id"))
+	subjectID, err1 := strconv.Atoi(c.PostForm("subject_id"))
+	teacherID, err2 := strconv.Atoi(c.PostForm("teacher_id"))
+	classroomID, err3 := strconv.Atoi(c.PostForm("classroom_id"))
 	startTimeStr := c.PostForm("start_time")
-	endTimeStr := c.PostForm("end_time")
+
+	if err1 != nil || err2 != nil || err3 != nil || startTimeStr == "" {
+		c.HTML(http.StatusBadRequest, "schedules_admin", gin.H{
+			"Title": "Управление расписанием (Admin)",
+			"Error": "Неверные данные формы",
+		})
+		return
+	}
 
 	layout := "2006-01-02T15:04"
-	startTime, _ := time.Parse(layout, startTimeStr)
-	endTime, _ := time.Parse(layout, endTimeStr)
+	startTime, err := time.Parse(layout, startTimeStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "schedules_admin", gin.H{
+			"Title": "Управление расписанием (Admin)",
+			"Error": "Неверный формат времени начала: " + err.Error(),
+		})
+		return
+	}
+	endTime := startTime.Add(90 * time.Minute)
 
-	_, err := db.Exec(`
+	// Проверка коллизий:
+	var collisionCount int
+	collisionQuery := `
+        SELECT COUNT(*) FROM schedule
+        WHERE (teacher_id = $1 OR classroom_id = $2)
+          AND start_time < $3
+          AND end_time > $4
+    `
+	err = db.QueryRow(collisionQuery, teacherID, classroomID, endTime, startTime).Scan(&collisionCount)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "schedules_admin", gin.H{
+			"Title": "Управление расписанием (Admin)",
+			"Error": "Ошибка проверки коллизий: " + err.Error(),
+		})
+		return
+	}
+	if collisionCount > 0 {
+		c.HTML(http.StatusConflict, "schedules_admin", gin.H{
+			"Title": "Управление расписанием (Admin)",
+			"Error": "Коллизия обнаружена: занятие пересекается с уже существующим.",
+		})
+		return
+	}
+
+	_, err = db.Exec(`
         INSERT INTO schedule (subject_id, teacher_id, classroom_id, start_time, end_time)
         VALUES ($1, $2, $3, $4, $5)
     `, subjectID, teacherID, classroomID, startTime, endTime)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "schedules_admin", gin.H{
 			"Title": "Управление расписанием (Admin)",
-			"Error": err.Error(),
+			"Error": "Ошибка создания записи: " + err.Error(),
 		})
 		return
 	}
+	c.Redirect(http.StatusSeeOther, "/admin/schedules")
 }
 
 // UpdateScheduleFormHandler обновляет существующую запись расписания (админ)

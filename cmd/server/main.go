@@ -96,7 +96,7 @@ func main() {
 	admin.Use(middleware.RoleMiddleware("admin"))
 	{
 		admin.GET("/schedules", func(c *gin.Context) {
-			handlers.RenderAdminSchedulesPage(c, dbConn)
+			handlers.RenderAdminSchedulesPageWithFilters(c, dbConn)
 		})
 		admin.POST("/schedules", func(c *gin.Context) {
 			handlers.CreateScheduleFormHandler(c, dbConn)
