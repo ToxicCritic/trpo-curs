@@ -1,0 +1,79 @@
+{{ define "manage_users" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Управление пользователями</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+  <!-- Шапка для админа -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/admin/schedules">Админ: Расписание</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarNav" aria-controls="navbarNav"
+              aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/admin/schedules">Управление расписанием</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/requests">Запросы</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/users">Управление пользователями</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Выйти</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <h2>Управление пользователями</h2>
+    {{ if .Error }}
+      <div class="alert alert-danger">{{.Error}}</div>
+    {{ end }}
+
+    {{ if .Users }}
+      <table class="table table-bordered table-hover">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Имя пользователя</th>
+            <th>Email</th>
+            <th>Роль</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Users }}
+          <tr>
+            <td>{{.ID}}</td>
+            <td>{{.Username}}</td>
+            <td>{{.Email}}</td>
+            <td>{{.Role}}</td>
+            <td>
+              <!-- Форма для изменения роли -->
+              <form method="POST" action="/admin/users/{{.ID}}">
+                <div class="input-group">
+                  <select name="role" class="form-select form-select-sm">
+                    <option value="student" {{if eq .Role "student"}}selected{{end}}>Student</option>
+                    <option value="teacher" {{if eq .Role "teacher"}}selected{{end}}>Teacher</option>
+                    <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Admin</option>
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-primary">Обновить</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    {{ else }}
+      <p>Нет пользователей.</p>
+    {{ end }}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{ end }}
