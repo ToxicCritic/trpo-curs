@@ -18,41 +18,44 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
-// Проверка заголовка Authorization + парс JWT
 func AuthMiddleware(c *gin.Context) {
+	var tokenString string
+
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenString = parts[1]
+		}
+	}
+	if tokenString == "" {
+		cookieToken, err := c.Cookie("token")
+		if err == nil {
+			tokenString = cookieToken
+		}
+	}
+	if tokenString == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Токен не найден"})
 		return
 	}
 
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header"})
-		return
-	}
-
-	tokenString := parts[1]
 	claims := &JWTClaims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
 		return SECRET_KEY, nil
 	})
 	if err != nil || !token.Valid {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Неверный или истекший токен"})
 		return
 	}
 
 	c.Set("user_id", claims.UserID)
 	c.Set("role", claims.Role)
-
 	c.Next()
 }
 
 func GenerateJWT(user models.User) (string, error) {
-	// Срок действия токена
 	expirationTime := time.Now().Add(24 * time.Hour)
-
 	claims := &JWTClaims{
 		UserID: user.ID,
 		Role:   user.Role,
