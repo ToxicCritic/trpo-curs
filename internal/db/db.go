@@ -12,8 +12,8 @@ import (
 func InitDB() (*sql.DB, error) {
 	host := getEnv("DB_HOST", "localhost")
 	port := getEnv("DB_PORT", "5432")
-	user := getEnv("DB_USER", "postgres")
-	password := getEnv("DB_PASSWORD", "postgres")
+	user := getEnv("DB_USER", "schedule_user")
+	password := getEnv("DB_PASSWORD", "schedule_pass")
 	dbName := getEnv("DB_NAME", "schedule_db")
 
 	psqlInfo := fmt.Sprintf(
@@ -53,6 +53,15 @@ func CreateTables(dbConn *sql.DB) error {
             created_at TIMESTAMP DEFAULT NOW()
         );
         `,
+
+		`
+        CREATE TABLE IF NOT EXISTS groups (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50) NOT NULL,
+            course VARCHAR(50)
+        );
+        `,
+
 		`
         CREATE TABLE IF NOT EXISTS teachers (
             id SERIAL PRIMARY KEY,
@@ -61,6 +70,7 @@ func CreateTables(dbConn *sql.DB) error {
             department VARCHAR(255)
         );
         `,
+
 		`
         CREATE TABLE IF NOT EXISTS students (
             id SERIAL PRIMARY KEY,
@@ -69,13 +79,7 @@ func CreateTables(dbConn *sql.DB) error {
             group_id INT REFERENCES groups(id)
         );
         `,
-		`
-        CREATE TABLE IF NOT EXISTS groups (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(50) NOT NULL,
-            course VARCHAR(50)
-        );
-        `,
+
 		`
         CREATE TABLE IF NOT EXISTS subjects (
             id SERIAL PRIMARY KEY,
@@ -83,6 +87,7 @@ func CreateTables(dbConn *sql.DB) error {
             description TEXT
         );
         `,
+
 		`
         CREATE TABLE IF NOT EXISTS classrooms (
             id SERIAL PRIMARY KEY,
@@ -91,6 +96,7 @@ func CreateTables(dbConn *sql.DB) error {
             capacity INTEGER
         );
         `,
+
 		`
         CREATE TABLE IF NOT EXISTS schedule (
             id SERIAL PRIMARY KEY,
@@ -102,6 +108,7 @@ func CreateTables(dbConn *sql.DB) error {
             created_at TIMESTAMP DEFAULT NOW()
         );
         `,
+
 		`
         CREATE TABLE IF NOT EXISTS schedule_groups (
             schedule_id INT NOT NULL REFERENCES schedule(id) ON DELETE CASCADE,
@@ -109,6 +116,7 @@ func CreateTables(dbConn *sql.DB) error {
             PRIMARY KEY (schedule_id, group_id)
         );
         `,
+
 		`
         CREATE TABLE IF NOT EXISTS requests (
             id SERIAL PRIMARY KEY,

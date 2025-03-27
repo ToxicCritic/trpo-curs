@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"log"
 	"net/http"
 
@@ -11,6 +12,9 @@ import (
 	"scheduleApp/internal/middleware"
 	"scheduleApp/internal/web"
 )
+
+//go:embed static/*
+var staticFiles embed.FS
 
 func main() {
 	dbConn, err := db.InitDB()
@@ -25,64 +29,94 @@ func main() {
 
 	web.InitTemplates()
 
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
 	r.SetHTMLTemplate(web.Tmpl)
 
+	fs := http.FS(staticFiles)
+	r.StaticFS("/static", fs)
+
+	// Публичные маршруты
+
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"Title":   "Главная страница",
-			"Message": "Добро пожаловать в систему расписания!",
+		c.HTML(http.StatusOK, "index_guest", gin.H{
+			"Title": "Главная страница (Гость)",
 		})
 	})
 
 	r.GET("/login", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "login.html", nil)
+		c.HTML(http.StatusOK, "login", gin.H{"Title": "Авторизация"})
 	})
-
 	r.POST("/login", func(c *gin.Context) {
 		handlers.LoginFormHandler(c, dbConn)
 	})
 
 	r.GET("/register", func(c *gin.Context) {
-		c.String(http.StatusOK, "Страница регистрации (добавьте register.html при необходимости)")
+		c.HTML(http.StatusOK, "register", gin.H{"Title": "Регистрация"})
 	})
-
 	r.POST("/register", func(c *gin.Context) {
 		handlers.RegisterFormHandler(c, dbConn)
 	})
 
-	// Нужен логин
+	// Приватные маршруты
 	auth := r.Group("/")
 	auth.Use(middleware.AuthMiddleware)
-	auth.GET("/schedules", func(c *gin.Context) {
-		handlers.GetSchedulesHandler(c, dbConn)
-	})
-	auth.POST("/requests", func(c *gin.Context) {
-		handlers.CreateRequestHandler(c, dbConn)
-	})
+	{
+		auth.GET("/logout", func(c *gin.Context) {
+			handlers.LogoutHandler(c)
+		})
 
-	// Нужен админ логин
+		auth.GET("/schedules", func(c *gin.Context) {
+			handlers.RenderSchedulesPage(c, dbConn)
+		})
+		auth.GET("/requests", func(c *gin.Context) {
+			handlers.RenderUserRequestsPage(c, dbConn)
+		})
+		auth.POST("/requests", func(c *gin.Context) {
+			handlers.CreateRequestHandler(c, dbConn)
+			c.Redirect(http.StatusSeeOther, "/requests")
+		})
+	}
+
+	// Админские маршруты
 	admin := auth.Group("/admin")
 	admin.Use(middleware.RoleMiddleware("admin"))
-	// CRUD для расписания
-	admin.POST("/schedules", func(c *gin.Context) {
-		handlers.CreateScheduleHandler(c, dbConn)
-	})
-	admin.PUT("/schedules/:id", func(c *gin.Context) {
-		handlers.UpdateScheduleHandler(c, dbConn)
-	})
-	admin.DELETE("/schedules/:id", func(c *gin.Context) {
-		handlers.DeleteScheduleHandler(c, dbConn)
-	})
-	// Обработка запросов на изменение
-	admin.GET("/requests", func(c *gin.Context) {
-		handlers.GetAllRequestsHandler(c, dbConn)
-	})
-	admin.PUT("/requests/:id", func(c *gin.Context) {
-		handlers.ProcessRequestHandler(c, dbConn)
-	})
+	{
+		admin.GET("/schedules", func(c *gin.Context) {
+			handlers.RenderAdminSchedulesPage(c, dbConn)
+		})
+		admin.POST("/schedules", func(c *gin.Context) {
+			handlers.CreateScheduleFormHandler(c, dbConn)
+			c.Redirect(http.StatusSeeOther, "/admin/schedules")
+		})
+		admin.POST("/schedules/:id", func(c *gin.Context) {
+			method := c.Query("_method")
+			if method == "PUT" {
+				handlers.UpdateScheduleFormHandler(c, dbConn)
+			} else if method == "DELETE" {
+				handlers.DeleteScheduleHandler(c, dbConn)
+			}
+			c.Redirect(http.StatusSeeOther, "/admin/schedules")
+		})
 
-	log.Println("Сервер запущен на порту :8080")
+		admin.GET("/requests", func(c *gin.Context) {
+			handlers.RenderAdminRequestsPage(c, dbConn)
+		})
+		admin.POST("/requests/:id", func(c *gin.Context) {
+			action := c.Query("_action")
+			handlers.ProcessRequestFormHandler(c, dbConn, action)
+			c.Redirect(http.StatusSeeOther, "/admin/requests")
+		})
+
+		admin.GET("/users", func(c *gin.Context) {
+			handlers.RenderManageUserRolesPage(c, dbConn)
+		})
+		admin.POST("/users/:id", func(c *gin.Context) {
+			handlers.UpdateUserRoleHandler(c, dbConn)
+		})
+	}
+
+	log.Println("Сервер запущен на :8080")
 	r.Run(":8080")
 }
