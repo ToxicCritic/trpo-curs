@@ -1,0 +1,82 @@
+{{ define "requests_admin" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Запросы (Admin)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body>
+  <!-- Шапка для администратора -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/admin/schedules">Админ: Расписание</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarNav" aria-controls="navbarNav"
+              aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/schedules">Управление расписанием</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/admin/requests">Запросы</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/logout">Выйти</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <h2>Запросы на изменение (Admin)</h2>
+
+    {{ if .Error }}
+      <div class="alert alert-danger">{{ .Error }}</div>
+    {{ end }}
+
+    {{ if .Requests }}
+    <table class="table table-bordered table-hover mt-3">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>UserID</th>
+          <th>ScheduleID</th>
+          <th>Изменение</th>
+          <th>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+      {{ range .Requests }}
+        <tr>
+          <td>{{.ID}}</td>
+          <td>{{.UserID}}</td>
+          <td>{{.ScheduleID}}</td>
+          <td>{{.DesiredChange}}</td>
+          <td>{{.Status}}</td>
+          <td>
+            <form class="d-inline" method="POST" action="/admin/requests/{{.ID}}?_action=approve">
+              <button class="btn btn-sm btn-success">Подтвердить</button>
+            </form>
+            <form class="d-inline" method="POST" action="/admin/requests/{{.ID}}?_action=reject">
+              <button class="btn btn-sm btn-secondary">Отклонить</button>
+            </form>
+          </td>
+        </tr>
+      {{ end }}
+      </tbody>
+    </table>
+    {{ else }}
+    <p>Нет запросов.</p>
+    {{ end }}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{ end }}

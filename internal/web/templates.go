@@ -6,6 +6,7 @@ import (
 	"log"
 )
 
+//go:embed templates/*.html
 var templatesFS embed.FS
 
 var Tmpl *template.Template
@@ -16,4 +17,5 @@ func InitTemplates() {
 	if err != nil {
 		log.Fatalf("Ошибка парсинга шаблонов: %v", err)
 	}
+	log.Println("Шаблоны успешно загружены.")
 }
