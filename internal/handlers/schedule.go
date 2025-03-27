@@ -81,19 +81,6 @@ func UpdateScheduleHandler(c *gin.Context, db *sql.DB) {
 	c.JSON(http.StatusOK, gin.H{"message": "Schedule updated"})
 }
 
-// Удалить занятие (admin)
-func DeleteScheduleHandler(c *gin.Context, db *sql.DB) {
-	scheduleID := c.Param("id")
-
-	_, err := db.Exec("DELETE FROM schedule WHERE id=$1", scheduleID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Schedule deleted"})
-}
-
 // Посмотреть расписание (все роли)
 func GetSchedulesHandler(c *gin.Context, db *sql.DB) {
 	rows, err := db.Query(`
