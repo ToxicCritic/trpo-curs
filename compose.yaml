@@ -1,0 +1,9 @@
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: schedule_db
+      POSTGRES_USER: schedule_user
+      POSTGRES_PASSWORD: schedule_pass
+    ports:
+      - "5432:5432"
