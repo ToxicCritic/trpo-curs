@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 
@@ -15,6 +16,9 @@ import (
 
 //go:embed static/*
 var staticFiles embed.FS
+
+//go:embed resources/*
+var resourceFiles embed.FS
 
 func main() {
 	dbConn, err := db.InitDB()
@@ -34,11 +38,19 @@ func main() {
 
 	r.SetHTMLTemplate(web.Tmpl)
 
-	fs := http.FS(staticFiles)
-	r.StaticFS("/static", fs)
+	subStatic, err := fs.Sub(staticFiles, "static")
+	if err != nil {
+		log.Fatalf("Ошибка получения поддиректории: %v", err)
+	}
+	r.StaticFS("/static", http.FS(subStatic))
+
+	subResources, err := fs.Sub(resourceFiles, "resources")
+	if err != nil {
+		log.Fatalf("Ошибка получения поддиректории: %v", err)
+	}
+	r.StaticFS("/resources", http.FS(subResources))
 
 	// Публичные маршруты
-
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index_guest", gin.H{
 			"Title": "Главная страница (Гость)",

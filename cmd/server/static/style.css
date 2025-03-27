@@ -32,14 +32,50 @@ th {
     background-color: #f7f7f7;
 }
 
-button {
-    background: #1e88e5;
-    border: none;
-    color: #fff;
-    padding: 8px 12px;
-    cursor: pointer;
+.navbar, .navbar.bg-success {
+    background-color: #37b34a !important;
+  }
+  
+  .navbar .nav-link {
+    color: #ffffff !important;
+  }
+  
+  .btn-custom {
+    background-color: #37b34a;
+    border-color: #37b34a;
+    color: #ffffff;
+  }
+  
+  .btn-custom:hover,
+  .btn-custom:focus,
+  .btn-custom:active {
+    background-color: #2f9e3d;
+    border-color: #2f9e3d;
+    color: #ffffff;
+  }
+  
+  .btn {
+    background-color: #37b34a;
+    border-color: #37b34a;
+    color: #ffffff;
+  }
+  
+  .btn:hover,
+  .btn:focus,
+  .btn:active {
+    background-color: #2f9e3d;
+    border-color: #2f9e3d;
+    color: #ffffff;
+  }
+
+.col-md-4, .col-md-6 {
+    padding: 60px 30px;
+    background-color: #fff;
+    border-radius: 15px;
 }
 
-button:hover {
-    background: #1565c0;
+#form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
