@@ -8,41 +8,47 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
-        <div class="container-fluid">
-          <a class="navbar-brand" href="/admin/schedules">
-            <img src="/resources/logo.png" alt="Логотип" style="height:40px;">
-          </a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                  data-bs-target="#navbarAdmin" aria-controls="navbarAdmin"
-                  aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="collapse navbar-collapse" id="navbarAdmin">
-            <ul class="navbar-nav ms-auto">
-              <li class="nav-item">
-                <a class="nav-link" href="/admin/schedules">Расписание</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="/admin/requests">Запросы</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="/admin/users">Пользователи</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="/logout">Выйти</a>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </nav>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/admin/schedules">
+        <img src="/resources/logo.png" alt="Логотип" style="height:40px;">
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarAdmin" aria-controls="navbarAdmin"
+              aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarAdmin">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/admin/schedules">Расписание</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/requests">Запросы</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/users">Пользователи</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Выйти</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  
   <div class="container mt-4">
     <h2>Управление пользователями</h2>
     {{ if .Error }}
-      <div class="alert alert-danger">{{.Error}}</div>
+      <div class="alert alert-danger">{{ .Error }}</div>
+    {{ end }}
+    {{ if .Alarm }}
+      <div class="alert alert-info">{{ .Alarm }}</div>
     {{ end }}
 
-    {{ if .Users }}
+    <!-- Форма поиска по ID -->
+    <form method="GET" action="/admin/users" class="mb-3">
+      <div class="input-group input-group-sm">
+        <input type="text" name="user_id" class="form-control" placeholder="Поиск по ID" value="{{ .UserIDSearch }}">
+        <button type="submit" class="btn btn-primary">Поиск</button>
+      </div>
+    </form>
+
+    <!-- Таблица для администраторов и преподавателей -->
+    <h3>Администраторы и Преподаватели</h3>
+    {{ if .NonStudents }}
       <table class="table table-bordered table-hover">
         <thead>
           <tr>
@@ -54,22 +60,21 @@
           </tr>
         </thead>
         <tbody>
-          {{ range .Users }}
+          {{ range .NonStudents }}
           <tr>
-            <td>{{.ID}}</td>
-            <td>{{.Username}}</td>
-            <td>{{.Email}}</td>
-            <td>{{.Role}}</td>
+            <td>{{ .ID }}</td>
+            <td>{{ .Username }}</td>
+            <td>{{ .Email }}</td>
+            <td>{{ .Role }}</td>
             <td>
-              <!-- Форма для изменения роли -->
-              <form method="POST" action="/admin/users/{{.ID}}">
-                <div class="input-group">
-                  <select name="role" class="form-select form-select-sm">
-                    <option value="student" {{if eq .Role "student"}}selected{{end}}>Student</option>
-                    <option value="teacher" {{if eq .Role "teacher"}}selected{{end}}>Teacher</option>
-                    <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Admin</option>
+              <form method="POST" action="/admin/users/{{ .ID }}" class="d-inline">
+                <div class="input-group input-group-sm">
+                  <select name="role" class="form-select">
+                    <option value="student" {{ if eq .Role "student" }}selected{{ end }}>Student</option>
+                    <option value="teacher" {{ if eq .Role "teacher" }}selected{{ end }}>Teacher</option>
+                    <option value="admin" {{ if eq .Role "admin" }}selected{{ end }}>Admin</option>
                   </select>
-                  <button type="submit" class="btn btn-sm btn-primary">Обновить</button>
+                  <button type="submit" class="btn btn-primary">Обновить</button>
                 </div>
               </form>
             </td>
@@ -78,10 +83,66 @@
         </tbody>
       </table>
     {{ else }}
-      <p>Нет пользователей.</p>
+      <p>Нет пользователей (Администраторы/Преподаватели).</p>
+    {{ end }}
+
+    <!-- Таблица для студентов -->
+    <h3>Студенты</h3>
+    {{ if .Students }}
+      <table class="table table-bordered table-hover">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Имя пользователя</th>
+            <th>Email</th>
+            <th>Группа</th>
+            <th>Роль</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Students }}
+          <tr>
+            <td>{{ .ID }}</td>
+            <td>{{ .Username }}</td>
+            <td>{{ .Email }}</td>
+            <td>
+              <form method="POST" action="/admin/users/{{ .ID }}/group" class="d-inline">
+                <div class="input-group input-group-sm">
+                  <select name="group_id" class="form-select">
+                    <option value="">Не назначено</option>
+                    {{ $student := . }}
+                    {{ range $.AllGroups }}
+                      <option value="{{ .ID }}"
+                        {{ if eq (printf "%d" .ID) (printf "%d" $student.GroupID) }}selected{{ end }}>
+                        {{ .Name }}
+                      </option>
+                    {{ end }}
+                  </select>
+                  <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+              </form>
+            </td>
+            <td>
+              <form method="POST" action="/admin/users/{{ .ID }}" class="d-inline">
+                <div class="input-group input-group-sm">
+                  <select name="role" class="form-select">
+                    <option value="student" {{ if eq .Role "student" }}selected{{ end }}>Student</option>
+                    <option value="teacher" {{ if eq .Role "teacher" }}selected{{ end }}>Teacher</option>
+                    <option value="admin" {{ if eq .Role "admin" }}selected{{ end }}>Admin</option>
+                  </select>
+                  <button type="submit" class="btn btn-primary">Обновить</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    {{ else }}
+      <p>Нет студентов.</p>
     {{ end }}
   </div>
-
+  
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

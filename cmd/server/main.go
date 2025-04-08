@@ -131,6 +131,9 @@ func main() {
 		admin.POST("/users/:id", func(c *gin.Context) {
 			handlers.UpdateUserRoleHandler(c, dbConn)
 		})
+		admin.POST("/users/:id/group", func(c *gin.Context) {
+			handlers.UpdateStudentGroupHandler(c, dbConn)
+		})
 	}
 
 	log.Println("Сервер запущен на :8080")

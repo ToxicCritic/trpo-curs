@@ -488,11 +488,29 @@ func RenderAdminRequestsPage(c *gin.Context, db *sql.DB) {
 }
 
 func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
-	rows, err := db.Query(`
-        SELECT id, username, email, role
-        FROM users
-        ORDER BY id
-    `)
+	// Получаем параметр поиска по ID из запроса (если он задан)
+	userIdSearch := c.Query("user_id")
+
+	// Запрос для администраторов и преподавателей (не студентов)
+	var nonStudentQuery string
+	var nonStudentArgs []interface{}
+	if userIdSearch == "" {
+		nonStudentQuery = `
+			SELECT id, username, email, role 
+			FROM users 
+			WHERE role <> 'student'
+			ORDER BY id
+		`
+	} else {
+		nonStudentQuery = `
+			SELECT id, username, email, role 
+			FROM users 
+			WHERE role <> 'student' AND id = $1
+			ORDER BY id
+		`
+		nonStudentArgs = append(nonStudentArgs, userIdSearch)
+	}
+	nonStudentRows, err := db.Query(nonStudentQuery, nonStudentArgs...)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
 			"Title": "Управление пользователями",
@@ -500,24 +518,82 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 		})
 		return
 	}
-	defer rows.Close()
+	defer nonStudentRows.Close()
 
-	var users []models.User
-	for rows.Next() {
+	var nonStudents []models.User
+	for nonStudentRows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role); err != nil {
+		// Для не-student'ов поле GroupID можно оставить пустым (или 0)
+		if err := nonStudentRows.Scan(&u.ID, &u.Username, &u.Email, &u.Role); err != nil {
 			c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
 				"Title": "Управление пользователями",
 				"Error": err.Error(),
 			})
 			return
 		}
-		users = append(users, u)
+		nonStudents = append(nonStudents, u)
+	}
+
+	// Запрос для студентов – данные о группе берутся из таблицы students через LEFT JOIN
+	var studentQuery string
+	var studentArgs []interface{}
+	if userIdSearch == "" {
+		studentQuery = `
+			SELECT u.id, u.username, u.email, u.role, COALESCE(s.group_id, 0) as group_id 
+			FROM users u
+			LEFT JOIN students s ON u.id = s.user_id
+			WHERE u.role = 'student'
+			ORDER BY u.id
+		`
+	} else {
+		studentQuery = `
+			SELECT u.id, u.username, u.email, u.role, COALESCE(s.group_id, 0) as group_id 
+			FROM users u
+			LEFT JOIN students s ON u.id = s.user_id
+			WHERE u.role = 'student' AND u.id = $1
+			ORDER BY u.id
+		`
+		studentArgs = append(studentArgs, userIdSearch)
+	}
+	studentRows, err := db.Query(studentQuery, studentArgs...)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
+			"Title": "Управление пользователями",
+			"Error": "Ошибка загрузки студентов: " + err.Error(),
+		})
+		return
+	}
+	defer studentRows.Close()
+
+	var students []models.User
+	for studentRows.Next() {
+		var u models.User
+		if err := studentRows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.GroupID); err != nil {
+			c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
+				"Title": "Управление пользователями",
+				"Error": err.Error(),
+			})
+			return
+		}
+		students = append(students, u)
+	}
+
+	// Загружаем список групп для студентов
+	allGroups, err := loadAllGroups(db)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
+			"Title": "Управление пользователями",
+			"Error": "Ошибка загрузки групп: " + err.Error(),
+		})
+		return
 	}
 
 	c.HTML(http.StatusOK, "manage_users", gin.H{
-		"Title": "Управление пользователями",
-		"Users": users,
+		"Title":        "Управление пользователями",
+		"NonStudents":  nonStudents,
+		"Students":     students,
+		"AllGroups":    allGroups,
+		"UserIDSearch": userIdSearch, // передаем значение поиска
 	})
 }
 
@@ -617,4 +693,41 @@ func checkScheduleCollision(db *sql.DB, teacherID, classroomID, groupID int, sta
 		log.Printf("DEBUG: Collision check result: count=%d", count)
 		return count > 0, nil
 	}
+}
+
+func UpdateStudentGroupHandler(c *gin.Context, db *sql.DB) {
+	userIDStr := c.Param("id")
+	groupIDStr := c.PostForm("group_id")
+
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "manage_users", gin.H{
+			"Title": "Управление пользователями",
+			"Error": "Неверный ID пользователя",
+		})
+		return
+	}
+
+	var groupID int
+	if groupIDStr != "" {
+		groupID, err = strconv.Atoi(groupIDStr)
+		if err != nil {
+			c.HTML(http.StatusBadRequest, "manage_users", gin.H{
+				"Title": "Управление пользователями",
+				"Error": "Неверный ID группы",
+			})
+			return
+		}
+	}
+
+	_, err = db.Exec(`UPDATE students SET group_id = $1 WHERE user_id = $2`, groupID, userID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
+			"Title": "Управление пользователями",
+			"Error": "Ошибка обновления группы: " + err.Error(),
+		})
+		return
+	}
+
+	c.Redirect(http.StatusSeeOther, "/admin/users")
 }

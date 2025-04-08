@@ -8,6 +8,7 @@ type User struct {
 	Password string `json:"-"`
 	Email    string `json:"email"`
 	Role     string `json:"role"`
+	GroupID  int    `json:"group_id,omitempty"`
 }
 
 type Teacher struct {
