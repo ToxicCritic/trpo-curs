@@ -69,6 +69,15 @@ type ScheduleDisplay struct {
 	StartTime   time.Time `json:"start_time"`
 	EndTime     time.Time `json:"end_time"`
 	CreatedAt   time.Time `json:"created_at"`
+	Comments    []Comment
+}
+
+type Comment struct {
+	ID          int       `json:"id"`
+	ScheduleID  int       `json:"schedule_id"`
+	TeacherID   int       `json:"teacher_id"`
+	CommentText string    `json:"comment_text"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type SubjectDisplay struct {
@@ -79,6 +88,11 @@ type SubjectDisplay struct {
 type GroupDisplay struct {
 	ID   int
 	Name string
+}
+
+type DepartmentDisplay struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 type TeacherDisplay struct {

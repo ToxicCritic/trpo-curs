@@ -5,47 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"scheduleApp/internal/models"
 	"strconv"
 	"time"
 
+	"scheduleApp/internal/models"
+
 	"github.com/gin-gonic/gin"
 )
-
-func RenderSchedulesPage(c *gin.Context, db *sql.DB) {
-	rows, err := db.Query(`
-        SELECT id, subject_id, teacher_id, classroom_id, start_time, end_time, created_at
-        FROM schedule
-        ORDER BY start_time
-    `)
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "schedules_user", gin.H{
-			"Title": "Расписание",
-			"Error": err.Error(),
-		})
-		return
-	}
-	defer rows.Close()
-
-	var schedules []models.Schedule
-	for rows.Next() {
-		var s models.Schedule
-		if err := rows.Scan(&s.ID, &s.SubjectID, &s.TeacherID, &s.ClassroomID,
-			&s.StartTime, &s.EndTime, &s.CreatedAt); err != nil {
-			c.HTML(http.StatusInternalServerError, "schedules_user", gin.H{
-				"Title": "Расписание",
-				"Error": err.Error(),
-			})
-			return
-		}
-		schedules = append(schedules, s)
-	}
-
-	c.HTML(http.StatusOK, "schedules_user", gin.H{
-		"Title":     "Расписание",
-		"Schedules": schedules,
-	})
-}
 
 func RenderAdminSchedulesPageWithFilters(c *gin.Context, db *sql.DB) {
 	allGroups, err := loadAllGroups(db)
@@ -171,89 +137,6 @@ func RenderAdminSchedulesPageWithFilters(c *gin.Context, db *sql.DB) {
 		"ClassroomFilter": classroomFilter,
 		"Alarm":           alarm,
 	})
-}
-
-func joinClauses(clauses []string, sep string) string {
-	if len(clauses) == 0 {
-		return ""
-	}
-	out := clauses[0]
-	for i := 1; i < len(clauses); i++ {
-		out += sep + clauses[i]
-	}
-	return out
-}
-
-func loadAllSubjects(db *sql.DB) ([]models.SubjectDisplay, error) {
-	rows, err := db.Query(`SELECT id, name FROM subjects ORDER BY name;`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var subjects []models.SubjectDisplay
-	for rows.Next() {
-		var s models.SubjectDisplay
-		if err := rows.Scan(&s.ID, &s.Name); err != nil {
-			return nil, err
-		}
-		subjects = append(subjects, s)
-	}
-	return subjects, nil
-}
-
-func loadAllGroups(db *sql.DB) ([]models.GroupDisplay, error) {
-	rows, err := db.Query(`SELECT id, name FROM groups ORDER BY name;`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []models.GroupDisplay
-	for rows.Next() {
-		var g models.GroupDisplay
-		if err := rows.Scan(&g.ID, &g.Name); err != nil {
-			return nil, err
-		}
-		result = append(result, g)
-	}
-	return result, nil
-}
-
-func loadAllTeachers(db *sql.DB) ([]models.TeacherDisplay, error) {
-	rows, err := db.Query(`SELECT id, name FROM teachers ORDER BY name;`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []models.TeacherDisplay
-	for rows.Next() {
-		var t models.TeacherDisplay
-		if err := rows.Scan(&t.ID, &t.Name); err != nil {
-			return nil, err
-		}
-		result = append(result, t)
-	}
-	return result, nil
-}
-
-func loadAllClassrooms(db *sql.DB) ([]models.ClassroomDisplay, error) {
-	rows, err := db.Query(`SELECT id, room_number FROM classrooms ORDER BY room_number;`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []models.ClassroomDisplay
-	for rows.Next() {
-		var c models.ClassroomDisplay
-		if err := rows.Scan(&c.ID, &c.RoomNumber); err != nil {
-			return nil, err
-		}
-		result = append(result, c)
-	}
-	return result, nil
 }
 
 func GetScheduleJSON(c *gin.Context, db *sql.DB) {
@@ -415,48 +298,11 @@ func DeleteScheduleHandler(c *gin.Context, db *sql.DB) {
 	RenderAdminSchedulesPageWithFilters(c, db)
 }
 
-func RenderUserRequestsPage(c *gin.Context, db *sql.DB) {
-	userIDVal, _ := c.Get("user_id")
-	userID, _ := userIDVal.(int)
-
-	rows, err := db.Query(`
-        SELECT id, user_id, schedule_id, desired_change, status
-        FROM requests
-        WHERE user_id=$1
-        ORDER BY id
-    `, userID)
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "requests_user", gin.H{
-			"Title": "Мои запросы",
-			"Error": err.Error(),
-		})
-		return
-	}
-	defer rows.Close()
-
-	var requests []models.Request
-	for rows.Next() {
-		var r models.Request
-		if err := rows.Scan(&r.ID, &r.UserID, &r.ScheduleID, &r.DesiredChange, &r.Status); err != nil {
-			c.HTML(http.StatusInternalServerError, "requests_user", gin.H{
-				"Title": "Мои запросы",
-				"Error": err.Error(),
-			})
-			return
-		}
-		requests = append(requests, r)
-	}
-
-	c.HTML(http.StatusOK, "requests_user", gin.H{
-		"Title":    "Мои запросы",
-		"Requests": requests,
-	})
-}
-
 func RenderAdminRequestsPage(c *gin.Context, db *sql.DB) {
 	rows, err := db.Query(`
         SELECT id, user_id, schedule_id, desired_change, status
         FROM requests
+				WHERE status != 'rejected'
         ORDER BY id
     `)
 	if err != nil {
@@ -488,10 +334,8 @@ func RenderAdminRequestsPage(c *gin.Context, db *sql.DB) {
 }
 
 func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
-	// Получаем параметр поиска по ID из запроса (если он задан)
 	userIdSearch := c.Query("user_id")
 
-	// Запрос для администраторов и преподавателей (не студентов)
 	var nonStudentQuery string
 	var nonStudentArgs []interface{}
 	if userIdSearch == "" {
@@ -523,7 +367,6 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 	var nonStudents []models.User
 	for nonStudentRows.Next() {
 		var u models.User
-		// Для не-student'ов поле GroupID можно оставить пустым (или 0)
 		if err := nonStudentRows.Scan(&u.ID, &u.Username, &u.Email, &u.Role); err != nil {
 			c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
 				"Title": "Управление пользователями",
@@ -534,7 +377,6 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 		nonStudents = append(nonStudents, u)
 	}
 
-	// Запрос для студентов – данные о группе берутся из таблицы students через LEFT JOIN
 	var studentQuery string
 	var studentArgs []interface{}
 	if userIdSearch == "" {
@@ -578,7 +420,6 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 		students = append(students, u)
 	}
 
-	// Загружаем список групп для студентов
 	allGroups, err := loadAllGroups(db)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "manage_users", gin.H{
@@ -593,7 +434,7 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 		"NonStudents":  nonStudents,
 		"Students":     students,
 		"AllGroups":    allGroups,
-		"UserIDSearch": userIdSearch, // передаем значение поиска
+		"UserIDSearch": userIdSearch,
 	})
 }
 

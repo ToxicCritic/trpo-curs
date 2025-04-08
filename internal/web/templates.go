@@ -41,6 +41,9 @@ func InitTemplates() {
 	funcMap := template.FuncMap{
 		"dayFullDate": dayFullDate,
 		"timeHHMM":    timeHHMM,
+		"formatDate": func(t time.Time) string {
+			return t.Format("02.01.2006")
+		},
 	}
 	Tmpl, err = template.New("").Funcs(funcMap).ParseFS(templatesFS, "templates/*.html")
 	if err != nil {

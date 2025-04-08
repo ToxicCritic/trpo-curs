@@ -31,13 +31,14 @@ func main() {
 		log.Fatalf("Ошибка при создании таблиц: %v", err)
 	}
 
+	// Инициализация шаблонов и установка DebugMode для вывода логов
 	web.InitTemplates()
-
 	gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
 
+	r := gin.Default()
 	r.SetHTMLTemplate(web.Tmpl)
 
+	// Подключаем статику
 	subStatic, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		log.Fatalf("Ошибка получения поддиректории: %v", err)
@@ -56,45 +57,42 @@ func main() {
 			"Title": "Главная страница (Гость)",
 		})
 	})
-
 	r.GET("/login", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "login", gin.H{"Title": "Авторизация"})
+		handlers.RenderLoginPage(c)
 	})
 	r.POST("/login", func(c *gin.Context) {
 		handlers.LoginFormHandler(c, dbConn)
 	})
-
 	r.GET("/register", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "register", gin.H{"Title": "Регистрация"})
+		handlers.RenderRegisterPage(c, dbConn)
 	})
 	r.POST("/register", func(c *gin.Context) {
 		handlers.RegisterFormHandler(c, dbConn)
 	})
 
-	// Приватные маршруты
-	auth := r.Group("/")
-	auth.Use(middleware.AuthMiddleware)
+	user := r.Group("/")
+	user.Use(middleware.AuthMiddleware)
 	{
-		auth.GET("/logout", func(c *gin.Context) {
+		user.GET("/logout", func(c *gin.Context) {
 			handlers.LogoutHandler(c)
 		})
-
-		auth.GET("/schedules", func(c *gin.Context) {
+		user.GET("/schedules", func(c *gin.Context) {
 			handlers.RenderSchedulesPage(c, dbConn)
 		})
-		auth.GET("/requests", func(c *gin.Context) {
+		user.GET("/requests", func(c *gin.Context) {
 			handlers.RenderUserRequestsPage(c, dbConn)
 		})
-		auth.POST("/requests", func(c *gin.Context) {
+		user.POST("/requests", func(c *gin.Context) {
 			handlers.CreateRequestHandler(c, dbConn)
-			c.Redirect(http.StatusSeeOther, "/requests")
+			c.Redirect(http.StatusSeeOther, "/user/requests")
 		})
 	}
 
-	// Админские маршруты
-	admin := auth.Group("/admin")
-	admin.Use(middleware.RoleMiddleware("admin"))
+	// Группа для админа
+	admin := r.Group("/admin")
+	admin.Use(middleware.AuthMiddleware, middleware.RoleMiddleware("admin"))
 	{
+
 		admin.GET("/schedules", func(c *gin.Context) {
 			handlers.RenderAdminSchedulesPageWithFilters(c, dbConn)
 		})
@@ -111,11 +109,9 @@ func main() {
 			}
 			c.Redirect(http.StatusSeeOther, "/admin/schedules")
 		})
-
 		admin.GET("/schedules/:id/json", func(c *gin.Context) {
 			handlers.GetScheduleJSON(c, dbConn)
 		})
-
 		admin.GET("/requests", func(c *gin.Context) {
 			handlers.RenderAdminRequestsPage(c, dbConn)
 		})
@@ -124,7 +120,6 @@ func main() {
 			handlers.ProcessRequestFormHandler(c, dbConn, action)
 			c.Redirect(http.StatusSeeOther, "/admin/requests")
 		})
-
 		admin.GET("/users", func(c *gin.Context) {
 			handlers.RenderManageUserRolesPage(c, dbConn)
 		})
@@ -133,6 +128,34 @@ func main() {
 		})
 		admin.POST("/users/:id/group", func(c *gin.Context) {
 			handlers.UpdateStudentGroupHandler(c, dbConn)
+		})
+	}
+
+	// Группа для учителя
+	teacher := r.Group("/teacher")
+	teacher.Use(middleware.AuthMiddleware, middleware.RoleMiddleware("teacher"))
+	{
+		teacher.GET("/logout", func(c *gin.Context) {
+			handlers.LogoutHandler(c)
+		})
+		teacher.GET("/schedule", func(c *gin.Context) {
+			handlers.RenderTeacherSchedule(c, dbConn)
+		})
+		teacher.GET("/comments", func(c *gin.Context) {
+			handlers.RenderTeacherComments(c, dbConn)
+		})
+		teacher.POST("/comments/:id", func(c *gin.Context) {
+			handlers.CreateTeacherComment(c, dbConn)
+		})
+		teacher.GET("/requests", func(c *gin.Context) {
+			handlers.RenderTeacherRequests(c, dbConn)
+		})
+		teacher.POST("/requests", func(c *gin.Context) {
+			handlers.CreateTeacherRequest(c, dbConn)
+			c.Redirect(http.StatusSeeOther, "/teacher/requests")
+		})
+		teacher.GET("/", func(c *gin.Context) {
+			handlers.RenderIndexTeacher(c, dbConn)
 		})
 	}
 

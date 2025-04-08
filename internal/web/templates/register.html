@@ -6,6 +6,38 @@
   <title>Регистрация</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="/static/style.css">
+  <script>
+    function toggleExtraFields() {
+      const roleSelect = document.getElementById("role-select");
+      const studentDiv = document.getElementById("student-extra");
+      const teacherDiv = document.getElementById("teacher-extra");
+      const teacherSelect = document.getElementById("edit-department");
+      const studentSelect = document.getElementById("group-select");
+      
+      console.log("Выбранная роль:", roleSelect.value);
+      if (roleSelect.value === "student") {
+        studentDiv.style.display = "block";
+        teacherDiv.style.display = "none";
+        // Убираем required у преподавательского селекта, чтобы не возникала ошибка
+        teacherSelect.removeAttribute("required");
+        // Обязательно ставим required для студенческого селекта, если он используется
+        studentSelect.setAttribute("required", "required");
+      } else if (roleSelect.value === "teacher") {
+        studentDiv.style.display = "none";
+        teacherDiv.style.display = "block";
+        teacherSelect.setAttribute("required", "required");
+        studentSelect.removeAttribute("required");
+        // Можно установить фокус для удобства
+        teacherSelect.focus();
+      } else {
+        studentDiv.style.display = "none";
+        teacherDiv.style.display = "none";
+        teacherSelect.removeAttribute("required");
+        studentSelect.removeAttribute("required");
+      }
+    }
+    document.addEventListener("DOMContentLoaded", toggleExtraFields);
+  </script>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-success">
@@ -26,24 +58,58 @@
       </div>
     </div>
   </nav>
+  
   <div class="container mt-4" id="form">
     <h2>Регистрация</h2>
     {{ if .Error }}
-      <div class="alert alert-danger">{{.Error}}</div>
+      <div class="alert alert-danger">{{ .Error }}</div>
     {{ end }}
 
     <form method="POST" action="/register" class="col-md-6">
       <div class="mb-3">
-        <label class="form-label">Имя пользователя</label>
-        <input type="text" name="username" class="form-control">
+        <label class="form-label">Имя пользователя (логин)</label>
+        <input type="text" name="username" class="form-control" required>
       </div>
       <div class="mb-3">
         <label class="form-label">Пароль</label>
-        <input type="password" name="password" class="form-control">
+        <input type="password" name="password" class="form-control" required>
       </div>
       <div class="mb-3">
         <label class="form-label">Email</label>
-        <input type="email" name="email" class="form-control">
+        <input type="email" name="email" class="form-control" required>
+      </div>
+      <!-- Общее поле для имени -->
+      <div class="mb-3">
+        <label class="form-label">Ваше имя</label>
+        <input type="text" name="name" class="form-control" required>
+      </div>
+      <!-- Селект выбора роли -->
+      <div class="mb-3">
+        <label class="form-label">Выберите роль</label>
+        <select id="role-select" name="role" class="form-select" onchange="toggleExtraFields()">
+          <option value="student" selected>Студент</option>
+          <option value="teacher">Преподаватель</option>
+        </select>
+      </div>
+      <!-- Поля для студентов -->
+      <div id="student-extra" style="display:none;" class="mb-3">
+        <label class="form-label">Выберите группу</label>
+        <select id="group-select" name="group_id" class="form-select">
+          <option value="">Выберите группу</option>
+          {{ range .AllGroups }}
+            <option value="{{ .ID }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <!-- Поля для преподавателей -->
+      <div id="teacher-extra" style="display:none;" class="mb-3">
+        <label class="form-label">Выберите отдел</label>
+        <select name="department_id" id="edit-department" class="form-select">
+          <option value="">Выберите отдел</option>
+          {{ range .AllDepartments }}
+            <option value="{{ .ID }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
       </div>
       <button type="submit" class="btn btn-success">Зарегистрироваться</button>
     </form>

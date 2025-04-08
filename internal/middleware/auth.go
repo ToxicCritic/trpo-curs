@@ -1,10 +1,13 @@
 package middleware
 
 import (
+	"errors"
+	"log"
 	"net/http"
-	"scheduleApp/internal/models"
 	"strings"
 	"time"
+
+	"scheduleApp/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -29,23 +32,39 @@ func AuthMiddleware(c *gin.Context) {
 		}
 	}
 	if tokenString == "" {
-		cookieToken, err := c.Cookie("token")
-		if err == nil {
+		if cookieToken, err := c.Cookie("token"); err == nil {
 			tokenString = cookieToken
 		}
 	}
 	if tokenString == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Токен не найден"})
+		log.Println("DEBUG: Токен не найден ни в заголовке, ни в куки.")
+		c.Redirect(http.StatusSeeOther, "/login?alarm=Токен+не+найден")
+		c.Abort()
 		return
 	}
 
 	claims := &JWTClaims{}
-
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
 		return SECRET_KEY, nil
 	})
 	if err != nil || !token.Valid {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Неверный или истекший токен"})
+		log.Printf("DEBUG: Ошибка парсинга токена: %v", err)
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			c.Redirect(http.StatusSeeOther, "/login?alarm=Ваш+токен+истек,+войдите+снова")
+			c.Abort()
+			return
+		}
+		c.Redirect(http.StatusSeeOther, "/login?alarm=Неверный+или+недействительный+токен")
+		c.Abort()
+		return
+	}
+	// Логируем полученные claims
+	log.Printf("DEBUG: Parsed JWT claims: UserID=%d, Role=%q", claims.UserID, claims.Role)
+
+	// Если роль отсутствует, можно задать дефолтное значение или вернуть ошибку.
+	if claims.Role == "" {
+		log.Println("DEBUG: Поле Role отсутствует в JWT claims")
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Role not found"})
 		return
 	}
 

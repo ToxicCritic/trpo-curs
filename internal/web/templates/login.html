@@ -29,9 +29,11 @@
   <div class="container mt-4" id="form">
     <h2>Авторизация</h2>
     {{ if .Error }}
-      <div class="alert alert-danger">{{.Error}}</div>
+      <div class="alert alert-danger">{{ .Error }}</div>
     {{ end }}
-
+    {{ if .Alarm }}
+      <div class="alert alert-info">{{ .Alarm }}</div>
+    {{ end }}
     <form method="POST" action="/login" class="col-md-4">
       <div class="mb-3">
         <label class="form-label">Имя пользователя</label>

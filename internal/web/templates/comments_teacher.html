@@ -1,0 +1,77 @@
+{{ define "teacher_comments" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Комментарии к занятиям</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/teacher/schedule">
+        <img src="/resources/logo.png" alt="Логотип" style="height:40px;">
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarTeacher" aria-controls="navbarTeacher"
+              aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarTeacher">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/teacher/schedule">Расписание</a></li>
+          <li class="nav-item"><a class="nav-link" href="/teacher/comments">Комментарии</a></li>
+          <li class="nav-item"><a class="nav-link" href="/teacher/requests">Запросы</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Выйти</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  
+  <div class="container mt-4">
+    <h2>Оставьте комментарии к проведённым занятиям</h2>
+    {{ if .Error }}
+      <div class="alert alert-danger">{{ .Error }}</div>
+    {{ end }}
+    
+    {{ if .PastSchedules }}
+      {{ range .PastSchedules }}
+        <div class="card mb-3">
+          <div class="card-header">
+            <!-- Сначала выводится дата, затем интервал времени -->
+            {{ formatDate .StartTime }}: {{ timeHHMM .StartTime }} - {{ timeHHMM .EndTime }} — {{ .SubjectName }} / {{ .RoomNumber }}
+          </div>
+          <div class="card-body">
+            <!-- Вывод ранее оставленных комментариев -->
+            {{ if .Comments }}
+              <ul class="list-group mb-3">
+                {{ range .Comments }}
+                  <li class="list-group-item">
+                    <small class="text-muted">{{ formatDate .CreatedAt }} {{ timeHHMM .CreatedAt }}</small> – {{ .CommentText }}
+                  </li>
+                {{ end }}
+              </ul>
+            {{ else }}
+              <p class="mb-3">Комментариев пока нет.</p>
+            {{ end }}
+            <!-- Форма добавления нового комментария -->
+            <form method="POST" action="/teacher/comments/{{ .ID }}">
+              <div class="mb-3">
+                <label class="form-label">Ваш комментарий</label>
+                <textarea name="comment" class="form-control" rows="3" placeholder="Введите ваш комментарий..." required></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary">Сохранить комментарий</button>
+            </form>
+          </div>
+        </div>
+      {{ end }}
+    {{ else }}
+      <p>Нет проведённых занятий, для которых можно оставить комментарии.</p>
+    {{ end }}
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{ end }}
