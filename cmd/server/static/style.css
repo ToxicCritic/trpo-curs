@@ -60,11 +60,16 @@ th {
     color: #ffffff;
   }
   
+  .btn-primary:hover,
+  .btn-primary:focus,
+  .btn-primary:active,
   .btn:hover,
   .btn:focus,
   .btn:active {
-    background-color: #2f9e3d;
-    border-color: #2f9e3d;
+    --bs-btn-hover-bg: #2f9e3d;
+    --bs-btn-hover-border-color: #2f9e3d;
+    --bs-btn-active-bg: #2f9e3d;
+    --bs-btn-active-border-color: #2f9e3d;
     color: #ffffff;
   }
 

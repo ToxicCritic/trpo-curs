@@ -112,6 +112,10 @@ func main() {
 			c.Redirect(http.StatusSeeOther, "/admin/schedules")
 		})
 
+		admin.GET("/schedules/:id/json", func(c *gin.Context) {
+			handlers.GetScheduleJSON(c, dbConn)
+		})
+
 		admin.GET("/requests", func(c *gin.Context) {
 			handlers.RenderAdminRequestsPage(c, dbConn)
 		})

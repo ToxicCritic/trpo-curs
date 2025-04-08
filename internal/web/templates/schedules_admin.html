@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <!-- Шапка для администратора с зеленым фоном и логотипом -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-success">
     <div class="container-fluid">
       <a class="navbar-brand" href="/admin/schedules">
@@ -30,21 +29,49 @@
   
   <div class="container mt-4">
     <h2>Управление расписанием (Admin)</h2>
-    
-    <!-- Форма фильтрации: администратор может фильтровать по группам, преподавателю и аудитории -->
+    {{ if .Alarm }}
+      <div class="alert alert-danger">{{ .Alarm }}</div>
+    {{ end }}
     <form method="GET" action="/admin/schedules" class="row g-3 mb-4">
       <div class="col-md-3">
         <label class="form-label">Группа</label>
-        <input type="text" name="group" class="form-control" value="{{.GroupFilter}}">
+        <select name="group" class="form-select">
+          <option value="">Все группы</option>
+          {{ range .AllGroups }}
+            <option value="{{ .ID }}"
+              {{ if eq (printf "%d" .ID) $.GroupFilter }}selected{{ end }}>
+              {{ .Name }}
+            </option>
+          {{ end }}
+        </select>
       </div>
+      
       <div class="col-md-3">
         <label class="form-label">Преподаватель</label>
-        <input type="text" name="teacher" class="form-control" value="{{.TeacherFilter}}">
+        <select name="teacher" class="form-select">
+          <option value="">Все преподаватели</option>
+          {{ range .AllTeachers }}
+            <option value="{{ .ID }}"
+              {{ if eq (printf "%d" .ID) $.TeacherFilter }}selected{{ end }}>
+              {{ .Name }}
+            </option>
+          {{ end }}
+        </select>
       </div>
+      
       <div class="col-md-3">
         <label class="form-label">Аудитория</label>
-        <input type="text" name="classroom" class="form-control" value="{{.ClassroomFilter}}">
+        <select name="classroom" class="form-select">
+          <option value="">Все аудитории</option>
+          {{ range .AllClassrooms }}
+            <option value="{{ .ID }}"
+              {{ if eq (printf "%d" .ID) $.ClassroomFilter }}selected{{ end }}>
+              {{ .RoomNumber }}
+            </option>
+          {{ end }}
+        </select>
       </div>
+      
       <div class="col-md-3 d-flex align-items-end">
         <button type="submit" class="btn btn-primary w-100">Применить фильтр</button>
       </div>
@@ -54,18 +81,17 @@
       <div class="alert alert-danger">{{.Error}}</div>
     {{ end }}
     
-    <!-- Расписание, сгруппированное по дням недели -->
-    {{ range $day, $schedules := .Schedules }}
-      <h3>{{ $day }}</h3>
+    {{ range $date, $schedules := .Schedules }}
+      <h3>{{ dayFullDate $date }}</h3>
       <table class="table table-bordered table-hover mb-4">
-        <thead class="table-light">
+        <thead>
           <tr>
             <th>ID</th>
+            <th>Группа</th>
             <th>Предмет</th>
             <th>Преподаватель</th>
             <th>Аудитория</th>
             <th>Начало</th>
-            <th>Окончание</th>
             <th>Действия</th>
           </tr>
         </thead>
@@ -73,18 +99,17 @@
           {{ range $schedules }}
             <tr>
               <td>{{ .ID }}</td>
-              <td>{{ .SubjectName }}</td>
+              <td>{{ .GroupNames }}</td>
+              <td style="min-width: 170px;">{{ .SubjectName }}</td>
               <td>{{ .TeacherName }}</td>
               <td>{{ .RoomNumber }}</td>
-              <td>{{ formatTime .StartTime }}</td>
-              <td>{{ formatTime .EndTime }}</td>
-              <td>
-                <!-- Кнопки редактирования и удаления -->
-                <form class="d-inline" method="POST" action="/admin/schedules/{{ .ID }}?_method=PUT">
-                  <button class="btn btn-sm btn-primary">Редактировать</button>
-                </form>
+              <td>{{ timeHHMM .StartTime }}</td>
+              <td style="display: flex; justify-content: space-evenly;">
+                <button class="btn btn-sm btn-primary edit-btn" data-id="{{ .ID }}">
+                  Редактировать
+                </button>
                 <form class="d-inline" method="POST" action="/admin/schedules/{{ .ID }}?_method=DELETE">
-                  <button class="btn btn-sm btn-danger">Удалить</button>
+                  <button class="btn btn-sm btn-danger" style="width: 120px;">Удалить</button>
                 </form>
               </td>
             </tr>
@@ -96,48 +121,167 @@
     {{ end }}
     
     <hr>
-    <!-- Форма добавления нового занятия с выпадающими списками -->
-    <h4>Добавить новое занятие</h4>
-    <form method="POST" action="/admin/schedules" class="row g-3">
-      <div class="col-md-3">
-        <label class="form-label">Предмет</label>
-        <select name="subject_id" class="form-select" required>
-          <option value="">Выберите предмет</option>
-          {{ range .Subjects }}
-            <option value="{{ .ID }}">{{ .Name }}</option>
-          {{ end }}
-        </select>
-      </div>
-      <div class="col-md-3">
+<h4>Добавить новое занятие</h4>
+<form method="POST" action="/admin/schedules" class="row g-3" 
+style="flex-direction: column; justify-content: center; align-items: center; min-width: 700px;">
+  <div class="col-md-2" style="min-width: 730px;">
+    <label class="form-label">Предмет</label>
+    <select name="subject_id" class="form-select" required>
+      <option value="">Выберите предмет</option>
+      {{ range .AllSubjects }}
+        <option value="{{ .ID }}">{{ .Name }}</option>
+      {{ end }}
+    </select>
+  </div>
+      <div class="col-md-2" style="min-width: 730px;">
         <label class="form-label">Преподаватель</label>
         <select name="teacher_id" class="form-select" required>
           <option value="">Выберите преподавателя</option>
-          {{ range .Teachers }}
+          {{ range .AllTeachers }}
             <option value="{{ .ID }}">{{ .Name }}</option>
           {{ end }}
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2" style="min-width: 730px;">
         <label class="form-label">Аудитория</label>
         <select name="classroom_id" class="form-select" required>
           <option value="">Выберите аудиторию</option>
-          {{ range .Classrooms }}
+          {{ range .AllClassrooms }}
             <option value="{{ .ID }}">{{ .RoomNumber }}</option>
           {{ end }}
         </select>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2" style="min-width: 730px;">
+        <label class="form-label">Группа</label>
+        <select name="group_id" class="form-select" required>
+          <option value="">Выберите группу</option>
+          {{ range .AllGroups }}
+            <option value="{{ .ID }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-4" style="min-width: 730px;">
         <label class="form-label">Начало (YYYY-MM-DDTHH:MM)</label>
         <input type="datetime-local" name="start_time" class="form-control" required>
       </div>
-      <!-- Время окончания вычисляется автоматически -->
-      <div class="col-12">
-        <button type="submit" class="btn btn-custom">Создать</button>
+      <div class="col-12" style="justify-content: center; display: flex; max-width: 730px; margin-bottom: 30px;">
+        <button type="submit" class="btn btn-custom" style="min-width: 300px;">Создать</button>
       </div>
     </form>
+<div class="modal fade" id="editScheduleModal" tabindex="-1" aria-labelledby="editScheduleModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editScheduleModalLabel">Редактировать занятие</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editScheduleForm">
+          <input type="hidden" name="schedule_id" id="edit-schedule-id">
+          <div class="mb-3">
+            <label for="edit-subject" class="form-label">Предмет</label>
+            <select name="subject_id" id="edit-subject" class="form-select" required>
+              <option value="">Выберите предмет</option>
+              {{ range .AllSubjects }}
+                <option value="{{ .ID }}">{{ .Name }}</option>
+              {{ end }}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="edit-teacher" class="form-label">Преподаватель</label>
+            <select name="teacher_id" id="edit-teacher" class="form-select" required>
+              <option value="">Выберите преподавателя</option>
+              {{ range .AllTeachers }}
+                <option value="{{ .ID }}">{{ .Name }}</option>
+              {{ end }}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="edit-classroom" class="form-label">Аудитория</label>
+            <select name="classroom_id" id="edit-classroom" class="form-select" required>
+              <option value="">Выберите аудиторию</option>
+              {{ range .AllClassrooms }}
+                <option value="{{ .ID }}">{{ .RoomNumber }}</option>
+              {{ end }}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="edit-group" class="form-label">Группа</label>
+            <select name="group_id" id="edit-group" class="form-select" required>
+              <option value="">Выберите группу</option>
+              {{ range .AllGroups }}
+                <option value="{{ .ID }}">{{ .Name }}</option>
+              {{ end }}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="edit-start-time" class="form-label">Начало (YYYY-MM-DDTHH:MM)</label>
+            <input type="datetime-local" name="start_time" id="edit-start-time" class="form-control" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+        <button type="button" class="btn btn-primary" id="saveEditSchedule">Сохранить</button>
+      </div>
+    </div>
   </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const editButtons = document.querySelectorAll(".edit-btn");
+    const modal = new bootstrap.Modal(document.getElementById("editScheduleModal"));
   
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    editButtons.forEach(button => {
+      button.addEventListener("click", function () {
+        const scheduleId = this.getAttribute("data-id");
+        console.log("Нажали «Редактировать», scheduleId =", scheduleId);
+  
+        fetch(`/admin/schedules/${scheduleId}/json`)
+          .then(response => response.json())
+          .then(data => {
+            console.log("Получен объект занятия:", data);
+  
+            document.getElementById("edit-schedule-id").value = data.id;
+            document.getElementById("edit-subject").value   = data.subject_id;
+            document.getElementById("edit-teacher").value   = data.teacher_id;
+            document.getElementById("edit-classroom").value = data.classroom_id;
+            document.getElementById("edit-group").value     = data.group_id;
+            
+            const isoString = new Date(data.start_time).toISOString();
+            const localDateTime = isoString.slice(0, 16); 
+            document.getElementById("edit-start-time").value = localDateTime;
+            
+            modal.show();
+          })
+          .catch(err => {
+            console.error("Ошибка при получении занятия:", err);
+            alert("Ошибка при получении данных о занятии");
+          });
+      });
+    });
+  
+    document.getElementById("saveEditSchedule").addEventListener("click", function () {
+      const form = document.getElementById("editScheduleForm");
+      const formData = new FormData(form);
+      const scheduleId = formData.get("schedule_id");
+      console.log("Сохраняем изменения для scheduleId =", scheduleId);
+  
+      fetch(`/admin/schedules/${scheduleId}?_method=PUT`, {
+        method: "POST",
+        body: formData
+      })
+      .then(response => {
+        console.log("Изменения сохранены, перезагрузка...");
+        document.location.reload();
+      })
+      .catch(err => {
+        console.error("Ошибка сохранения:", err);
+        alert("Ошибка сохранения изменений");
+      });
+    });
+  });
+  </script>
 </html>
 {{ end }}

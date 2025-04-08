@@ -57,6 +57,11 @@ type Request struct {
 
 type ScheduleDisplay struct {
 	ID          int       `json:"id"`
+	SubjectID   int       `json:"subject_id"`
+	TeacherID   int       `json:"teacher_id"`
+	ClassroomID int       `json:"classroom_id"`
+	GroupID     int       `json:"group_id"`
+	GroupNames  string    `json:"group_names"`
 	SubjectName string    `json:"subject_name"`
 	TeacherName string    `json:"teacher_name"`
 	RoomNumber  string    `json:"room_number"`
@@ -68,6 +73,11 @@ type ScheduleDisplay struct {
 type SubjectDisplay struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
+}
+
+type GroupDisplay struct {
+	ID   int
+	Name string
 }
 
 type TeacherDisplay struct {
