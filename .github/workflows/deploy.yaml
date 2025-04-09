@@ -11,7 +11,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      HOST: root@87.228.79.145            
+      HOST: root@87.228.39.227            
       DEPLOY_DIRECTORY: /root/apps/schedule-app 
       ENV_FILE_PATH: /root/apps/schedule-app/config.env
 
