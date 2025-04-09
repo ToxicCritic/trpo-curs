@@ -1,4 +1,4 @@
-.env
+*.env
 hasher.go
 data.sql
 uploads/comments/*
