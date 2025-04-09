@@ -13,7 +13,6 @@ jobs:
     env:
       HOST: root@87.228.79.145            
       DEPLOY_DIRECTORY: /root/apps/schedule-app 
-      CONFIG_PATH: /root/apps/schedule-app/config/prod.yaml
       ENV_FILE_PATH: /root/apps/schedule-app/config.env
 
     steps:
@@ -33,7 +32,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.23.4
+          go-version: '1.23.4'
 
       - name: Build app
         run: |
