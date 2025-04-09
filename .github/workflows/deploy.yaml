@@ -1,4 +1,4 @@
-name: Deploy App
+name: Deploy ScheduleApp
 
 on:
   workflow_dispatch:
@@ -11,16 +11,17 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      HOST: root@5.189.237.115
-      DEPLOY_DIRECTORY: /root/apps/url-shortener
-      CONFIG_PATH: /root/apps/url-shortener/config/prod.yaml
-      ENV_FILE_PATH: /root/apps/url-shortener/config.env
+      HOST: root@87.228.79.145            
+      DEPLOY_DIRECTORY: /root/apps/schedule-app 
+      CONFIG_PATH: /root/apps/schedule-app/config/prod.yaml
+      ENV_FILE_PATH: /root/apps/schedule-app/config.env
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
           ref: ${{ github.event.inputs.tag }}
+
       - name: Check if tag exists
         run: |
           git fetch --all --tags
@@ -28,41 +29,47 @@ jobs:
             echo "error: Tag '${{ github.event.inputs.tag }}' not found"
             exit 1
           fi
+
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.23.4
+          go-version: 1.20
+
       - name: Build app
         run: |
           go mod download
           go build -o scheduleApp ./cmd/server
+
       - name: Deploy to VM
-        run:
-          sudo apt-get install -y ssh rsync
+        run: |
+          sudo apt-get update && sudo apt-get install -y ssh rsync
           echo "$DEPLOY_SSH_KEY" > deploy_key.pem
           chmod 600 deploy_key.pem
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "mkdir -p ${{ env.DEPLOY_DIRECTORY }}"
           rsync -avz -e 'ssh -i deploy_key.pem -o StrictHostKeyChecking=no' --exclude='.git' ./ ${{ env.HOST }}:${{ env.DEPLOY_DIRECTORY }}
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+
       - name: Remove old systemd service file
         run: |
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "rm -f /etc/systemd/system/url-shortener.service"
-      - name: List workspace contents
-        run: |
-          echo "Listing deployment folder contents:"
-          ls -la ${{ github.workspace }}/deployment
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "rm -f /etc/systemd/system/scheduleApp.service"
+
       - name: Create environment file on server
         run: |
           ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "\
           touch ${{ env.ENV_FILE_PATH }} && \
           chmod 600 ${{ env.ENV_FILE_PATH }} && \
-          echo 'CONFIG_PATH=${{ env.CONFIG_PATH }}' > ${{ env.ENV_FILE_PATH }} && \
-          echo 'HTTP_SERVER_PASSWORD=${{ secrets.AUTH_PASS }}' >> ${{ env.ENV_FILE_PATH }}"
+          echo 'DB_HOST=${{ secrets.DB_HOST }}' >> ${{ env.ENV_FILE_PATH }} && \
+          echo 'DB_PORT=${{ secrets.DB_PORT }}' >> ${{ env.ENV_FILE_PATH }} && \
+          echo 'DB_USER=${{ secrets.DB_USER }}' >> ${{ env.ENV_FILE_PATH }} && \
+          echo 'DB_PASSWORD=${{ secrets.DB_PASSWORD }}' >> ${{ env.ENV_FILE_PATH }} && \
+          echo 'DB_NAME=${{ secrets.DB_NAME }}' >> ${{ env.ENV_FILE_PATH }}"
+      
       - name: Copy systemd service file
         run: |
-          scp -i deploy_key.pem -o StrictHostKeyChecking=no ${{ github.workspace }}/deployment/url-shortener.service ${{ env.HOST }}:/tmp/url-shortener.service
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "mv /tmp/url-shortener.service /etc/systemd/system/url-shortener.service"
+          scp -i deploy_key.pem -o StrictHostKeyChecking=no ${{ github.workspace }}/deployment/scheduleApp.service ${{ env.HOST }}:/tmp/scheduleApp.service
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "mv /tmp/scheduleApp.service /etc/systemd/system/scheduleApp.service"
+
       - name: Start application
         run: |
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "systemctl daemon-reload && systemctl restart url-shortener.service"
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "systemctl daemon-reload && systemctl restart scheduleApp.service"
