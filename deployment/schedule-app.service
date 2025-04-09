@@ -1,15 +1,19 @@
 [Unit]
-Description=Schedule App
+Description=ScheduleApp Service
 After=network.target
 
 [Service]
 User=root
-WorkingDirectory=/root/apps/
-ExecStart=/root/apps/schedule-app/schedule-app 
+WorkingDirectory=/root/apps/schedule-app
+ExecStart=/root/apps/schedule-app/scheduleApp
+Environment="DB_HOST=db"
+Environment="DB_PORT=5432"
+Environment="DB_USER=schedule_user"
+Environment="DB_PASSWORD=schedule_pass"
+Environment="DB_NAME=schedule_db"
+EnvironmentFile=-/root/apps/schedule-app/config.env
 Restart=always
-RestartSec=4
-StandardOutput=inherit
-EnvironmentFile=/root/apps/schedule-app/config.env
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
