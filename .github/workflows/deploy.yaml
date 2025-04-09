@@ -64,6 +64,9 @@ jobs:
           echo 'DB_PASSWORD=${{ secrets.DB_PASSWORD }}' >> ${{ env.ENV_FILE_PATH }} && \
           echo 'DB_NAME=${{ secrets.DB_NAME }}' >> ${{ env.ENV_FILE_PATH }}"
       
+      - name: List deployment directory
+        run: ls -la ${{ github.workspace }}/deployment
+
       - name: Copy systemd service file
         run: |
           scp -i deploy_key.pem -o StrictHostKeyChecking=no ${{ github.workspace }}/deployment/scheduleApp.service ${{ env.HOST }}:/tmp/scheduleApp.service
