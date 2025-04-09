@@ -1,9 +1,29 @@
 services:
-  postgres:
-    image: postgres:latest
+  db:
+    image: postgres:14
+    restart: always
     environment:
-      POSTGRES_DB: schedule_db
       POSTGRES_USER: schedule_user
       POSTGRES_PASSWORD: schedule_pass
+      POSTGRES_DB: schedule_db
+    volumes:
+      - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+
+  app:
+    build: .
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: schedule_user
+      DB_PASSWORD: schedule_pass
+      DB_NAME: schedule_db
+
+volumes:
+  db-data:

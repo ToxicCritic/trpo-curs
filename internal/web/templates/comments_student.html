@@ -1,0 +1,72 @@
+{{ define "student_comments" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Комментарии преподавателей</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/student/schedules">
+        <img src="/resources/logo.png" alt="Логотип" style="height:40px;">
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarStudent" aria-controls="navbarStudent"
+              aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarStudent">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/student/schedules">Расписание</a></li>
+          <li class="nav-item"><a class="nav-link" href="/student/comments">Комментарии преподавателей</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Выйти</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  
+  <div class="container mt-4">
+    <h2>Комментарии преподавателей к вашим занятиям</h2>
+    {{ if .Error }}
+      <div class="alert alert-danger">{{ .Error }}</div>
+    {{ end }}
+    {{ if .PastSchedules }}
+      {{ range $date, $schedules := .PastSchedules }}
+        <h3>{{ $date }}</h3>
+        {{ range $i, $sch := $schedules }}
+          <div class="card mb-3">
+            <div class="card-header">
+              {{ formatDate $sch.StartTime }}: {{ timeHHMM $sch.StartTime }} - {{ timeHHMM $sch.EndTime }} — {{ $sch.SubjectName }} / {{ $sch.RoomNumber }}
+            </div>
+            <div class="card-body">
+              {{ if $sch.Comments }}
+                <ul class="list-group mb-3">
+                  {{ range $sch.Comments }}
+                    <li class="list-group-item">
+                      <small class="text-muted">{{ formatDate .CreatedAt }} {{ timeHHMM .CreatedAt }}</small> – {{ .CommentText }}
+                      {{ if .FilePath }}
+                      <br>
+                      <a href="/uploads/{{ .FilePath }}" target="_blank">Скачать вложение</a>
+                      {{ end }}
+                    </li>
+                  {{ end }}
+                </ul>
+              {{ else }}
+                <p class="mb-3">На этом занятии пока нет комментариев преподавателя.</p>
+              {{ end }}
+            </div>
+          </div>
+        {{ end }}
+      {{ end }}
+    {{ else }}
+      <p>Нет проведённых занятий для отображения комментариев преподавателя.</p>
+    {{ end }}
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{ end }}

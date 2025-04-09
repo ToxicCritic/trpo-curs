@@ -38,7 +38,6 @@
       <div class="alert alert-info">{{ .Alarm }}</div>
     {{ end }}
 
-    <!-- Форма поиска по ID -->
     <form method="GET" action="/admin/users" class="mb-3">
       <div class="input-group input-group-sm">
         <input type="text" name="user_id" class="form-control" placeholder="Поиск по ID" value="{{ .UserIDSearch }}">
@@ -46,9 +45,8 @@
       </div>
     </form>
 
-    <!-- Таблица для администраторов и преподавателей -->
-    <h3>Администраторы и Преподаватели</h3>
-    {{ if .NonStudents }}
+    <h3>Администраторы</h3>
+    {{ if .Admins }}
       <table class="table table-bordered table-hover">
         <thead>
           <tr>
@@ -56,23 +54,21 @@
             <th>Имя пользователя</th>
             <th>Email</th>
             <th>Роль</th>
-            <th>Действия</th>
           </tr>
         </thead>
         <tbody>
-          {{ range .NonStudents }}
+          {{ range .Admins }}
           <tr>
             <td>{{ .ID }}</td>
             <td>{{ .Username }}</td>
             <td>{{ .Email }}</td>
-            <td>{{ .Role }}</td>
             <td>
               <form method="POST" action="/admin/users/{{ .ID }}" class="d-inline">
                 <div class="input-group input-group-sm">
                   <select name="role" class="form-select">
-                    <option value="student" {{ if eq .Role "student" }}selected{{ end }}>Student</option>
-                    <option value="teacher" {{ if eq .Role "teacher" }}selected{{ end }}>Teacher</option>
                     <option value="admin" {{ if eq .Role "admin" }}selected{{ end }}>Admin</option>
+                    <option value="teacher" {{ if eq .Role "teacher" }}selected{{ end }}>Teacher</option>
+                    <option value="student" {{ if eq .Role "student" }}selected{{ end }}>Student</option>
                   </select>
                   <button type="submit" class="btn btn-primary">Обновить</button>
                 </div>
@@ -83,10 +79,46 @@
         </tbody>
       </table>
     {{ else }}
-      <p>Нет пользователей (Администраторы/Преподаватели).</p>
+      <p>Нет администраторов.</p>
     {{ end }}
 
-    <!-- Таблица для студентов -->
+    <h3>Преподаватели</h3>
+    {{ if .Teachers }}
+      <table class="table table-bordered table-hover">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Имя пользователя</th>
+            <th>Email</th>
+            <th>Роль</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Teachers }}
+          <tr>
+            <td>{{ .ID }}</td>
+            <td>{{ .Username }}</td>
+            <td>{{ .Email }}</td>
+            <td>
+              <form method="POST" action="/admin/users/{{ .ID }}" class="d-inline">
+                <div class="input-group input-group-sm">
+                  <select name="role" class="form-select">
+                    <option value="teacher" {{ if eq .Role "teacher" }}selected{{ end }}>Teacher</option>
+                    <option value="admin" {{ if eq .Role "admin" }}selected{{ end }}>Admin</option>
+                    <option value="student" {{ if eq .Role "student" }}selected{{ end }}>Student</option>
+                  </select>
+                  <button type="submit" class="btn btn-primary">Обновить</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    {{ else }}
+      <p>Нет преподавателей.</p>
+    {{ end }}
+
     <h3>Студенты</h3>
     {{ if .Students }}
       <table class="table table-bordered table-hover">

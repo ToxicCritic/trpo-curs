@@ -1,3 +1,4 @@
 .env
-resources/
-db/
+hasher.go
+data.sql
+uploads/comments/*

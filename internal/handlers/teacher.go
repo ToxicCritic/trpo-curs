@@ -1,8 +1,14 @@
 package handlers
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -47,14 +53,13 @@ func RenderIndexTeacher(c *gin.Context, db *sql.DB) {
 	})
 }
 
-// RenderTeacherSchedule выводит расписание занятий для текущего учителя.
 func RenderTeacherSchedule(c *gin.Context, db *sql.DB) {
-	// Получаем user_id из контекста, установленного миддлварой.
+	// Извлекаем user_id из контекста
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.HTML(http.StatusUnauthorized, "teacher_schedule", gin.H{
 			"Title": "Расписание учителя",
-			"Error": "Ошибка авторизации",
+			"Error": "Пользователь не авторизован",
 		})
 		return
 	}
@@ -67,7 +72,7 @@ func RenderTeacherSchedule(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Получаем teacher_id из таблицы teachers, связывающей user_id с преподавателем.
+	// Получаем teacherID по user_id
 	var teacherID int
 	err := db.QueryRow(`SELECT id FROM teachers WHERE user_id = $1`, userID).Scan(&teacherID)
 	if err != nil {
@@ -78,8 +83,30 @@ func RenderTeacherSchedule(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Формируем запрос для получения расписания для данного учителя.
-	query := `
+	// Считываем фильтры: по группе и аудитории
+	groupFilter := c.Query("group")
+	classroomFilter := c.Query("classroom")
+
+	// Загружаем списки для фильтрации (для формы)
+	allGroups, err := loadAllGroups(db)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "teacher_schedule", gin.H{
+			"Title": "Расписание учителя",
+			"Error": "Ошибка загрузки групп: " + err.Error(),
+		})
+		return
+	}
+	allClassrooms, err := loadAllClassrooms(db)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "teacher_schedule", gin.H{
+			"Title": "Расписание учителя",
+			"Error": "Ошибка загрузки аудиторий: " + err.Error(),
+		})
+		return
+	}
+
+	// Базовый запрос для получения расписания для данного преподавателя (предстоящие занятия)
+	baseQuery := `
 		SELECT 
 			s.id,
 			sub.name AS subject_name,
@@ -99,12 +126,49 @@ func RenderTeacherSchedule(c *gin.Context, db *sql.DB) {
 		JOIN classrooms c ON s.classroom_id = c.id
 		LEFT JOIN schedule_groups sg ON s.id = sg.schedule_id
 		LEFT JOIN groups g ON sg.group_id = g.id
-		WHERE s.teacher_id = $1
-		AND s.start_time > NOW()
-		GROUP BY s.id, sub.name, s.subject_id, t.name, s.teacher_id, c.room_number, s.classroom_id, s.start_time, s.end_time, s.created_at
-		ORDER BY s.start_time ASC;
 	`
-	rows, err := db.Query(query, teacherID)
+	// Основное условие: занятия назначены данному преподавателю и будущие (start_time > NOW())
+	whereClause := `WHERE s.teacher_id = $1 AND s.start_time > NOW()`
+	args := []interface{}{teacherID}
+	argIndex := 2
+
+	// Если задан фильтр по группе, добавляем условие через вложенный запрос
+	if groupFilter != "" {
+		groupID, err := strconv.Atoi(groupFilter)
+		if err != nil {
+			c.HTML(http.StatusBadRequest, "teacher_schedule", gin.H{
+				"Title": "Расписание учителя",
+				"Error": "Неверный формат фильтра по группе",
+			})
+			return
+		}
+		whereClause += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM schedule_groups sg2 WHERE sg2.schedule_id = s.id AND sg2.group_id = $%d)", argIndex)
+		args = append(args, groupID)
+		argIndex++
+	}
+
+	if classroomFilter != "" {
+		classroomID, err := strconv.Atoi(classroomFilter)
+		if err != nil {
+			c.HTML(http.StatusBadRequest, "teacher_schedule", gin.H{
+				"Title": "Расписание учителя",
+				"Error": "Неверный формат фильтра по аудитории",
+			})
+			return
+		}
+		whereClause += fmt.Sprintf(" AND s.classroom_id = $%d", argIndex)
+		args = append(args, classroomID)
+		argIndex++
+	}
+
+	groupByClause := `
+		GROUP BY s.id, sub.name, s.subject_id, t.name, s.teacher_id, c.room_number, s.classroom_id, s.start_time, s.end_time, s.created_at
+		ORDER BY s.start_time ASC
+	`
+
+	fullQuery := baseQuery + " " + whereClause + " " + groupByClause
+
+	rows, err := db.Query(fullQuery, args...)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "teacher_schedule", gin.H{
 			"Title": "Расписание учителя",
@@ -114,12 +178,12 @@ func RenderTeacherSchedule(c *gin.Context, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	// Группируем занятия по дате (без учета времени)
 	groupedSchedules := make(map[time.Time][]models.ScheduleDisplay)
 	for rows.Next() {
 		var sch models.ScheduleDisplay
 		err := rows.Scan(&sch.ID, &sch.SubjectName, &sch.SubjectID, &sch.TeacherName, &sch.TeacherID,
-			&sch.RoomNumber, &sch.ClassroomID, &sch.StartTime, &sch.EndTime, &sch.CreatedAt, &sch.GroupNames, &sch.GroupID)
+			&sch.RoomNumber, &sch.ClassroomID, &sch.StartTime, &sch.EndTime, &sch.CreatedAt,
+			&sch.GroupNames, &sch.GroupID)
 		if err != nil {
 			c.HTML(http.StatusInternalServerError, "teacher_schedule", gin.H{
 				"Title": "Расписание учителя",
@@ -127,13 +191,17 @@ func RenderTeacherSchedule(c *gin.Context, db *sql.DB) {
 			})
 			return
 		}
-		day := time.Date(sch.StartTime.Year(), sch.StartTime.Month(), sch.StartTime.Day(), 0, 0, 0, 0, sch.StartTime.Location())
-		groupedSchedules[day] = append(groupedSchedules[day], sch)
+		dayKey := time.Date(sch.StartTime.Year(), sch.StartTime.Month(), sch.StartTime.Day(), 0, 0, 0, 0, sch.StartTime.Location())
+		groupedSchedules[dayKey] = append(groupedSchedules[dayKey], sch)
 	}
 
 	c.HTML(http.StatusOK, "teacher_schedule", gin.H{
-		"Title":     "Расписание учителя",
-		"Schedules": groupedSchedules,
+		"Title":           "Расписание учителя",
+		"Schedules":       groupedSchedules,
+		"AllGroups":       allGroups,
+		"AllClassrooms":   allClassrooms,
+		"GroupFilter":     groupFilter,
+		"ClassroomFilter": classroomFilter,
 	})
 }
 
@@ -154,6 +222,7 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 		})
 		return
 	}
+
 	var teacherID int
 	err := db.QueryRow(`SELECT id FROM teachers WHERE user_id = $1`, userID).Scan(&teacherID)
 	if err != nil {
@@ -163,8 +232,8 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 		})
 		return
 	}
+	log.Printf("DEBUG: teacherID = %d", teacherID)
 
-	// Выбираем прошедшие занятия для данного учителя (где end_time < NOW())
 	query := `
 		SELECT 
 			s.id,
@@ -189,6 +258,7 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 		GROUP BY s.id, sub.name, s.subject_id, t.name, s.teacher_id, c.room_number, s.classroom_id, s.start_time, s.end_time, s.created_at
 		ORDER BY s.start_time ASC;
 	`
+	log.Printf("DEBUG: Выполняем запрос расписания для teacherID = %d", teacherID)
 	rows, err := db.Query(query, teacherID)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "teacher_comments", gin.H{
@@ -199,12 +269,23 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	var pastSchedules []models.ScheduleDisplay
+	groupedSchedules := make(map[string][]models.ScheduleDisplay)
 	for rows.Next() {
 		var sch models.ScheduleDisplay
-		err := rows.Scan(&sch.ID, &sch.SubjectName, &sch.SubjectID, &sch.TeacherName, &sch.TeacherID,
-			&sch.RoomNumber, &sch.ClassroomID, &sch.StartTime, &sch.EndTime, &sch.CreatedAt,
-			&sch.GroupNames, &sch.GroupID)
+		err := rows.Scan(
+			&sch.ID,
+			&sch.SubjectName,
+			&sch.SubjectID,
+			&sch.TeacherName,
+			&sch.TeacherID,
+			&sch.RoomNumber,
+			&sch.ClassroomID,
+			&sch.StartTime,
+			&sch.EndTime,
+			&sch.CreatedAt,
+			&sch.GroupNames,
+			&sch.GroupID,
+		)
 		if err != nil {
 			c.HTML(http.StatusInternalServerError, "teacher_comments", gin.H{
 				"Title": "Комментарии к занятиям",
@@ -212,13 +293,20 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 			})
 			return
 		}
+		log.Printf("DEBUG: Загружено занятие ID = %d, StartTime = %s", sch.ID, sch.StartTime)
 
 		commentRows, err := db.Query(`
-			SELECT id, schedule_id, teacher_id, comment_text, created_at
-			FROM comments
-			WHERE schedule_id = $1
-			ORDER BY created_at ASC
-		`, sch.ID)
+		SELECT 
+			id, 
+			schedule_id, 
+			teacher_id, 
+			comment_text, 
+			COALESCE(file_path, '') as file_path,
+			created_at
+		FROM comments
+		WHERE schedule_id = $1
+		ORDER BY created_at ASC
+	`, sch.ID)
 		if err != nil {
 			c.HTML(http.StatusInternalServerError, "teacher_comments", gin.H{
 				"Title": "Комментарии к занятиям",
@@ -229,7 +317,7 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 
 		for commentRows.Next() {
 			var comm models.Comment
-			if err := commentRows.Scan(&comm.ID, &comm.ScheduleID, &comm.TeacherID, &comm.CommentText, &comm.CreatedAt); err != nil {
+			if err := commentRows.Scan(&comm.ID, &comm.ScheduleID, &comm.TeacherID, &comm.CommentText, &comm.FilePath, &comm.CreatedAt); err != nil {
 				commentRows.Close()
 				c.HTML(http.StatusInternalServerError, "teacher_comments", gin.H{
 					"Title": "Комментарии к занятиям",
@@ -240,13 +328,15 @@ func RenderTeacherComments(c *gin.Context, db *sql.DB) {
 			sch.Comments = append(sch.Comments, comm)
 		}
 		commentRows.Close()
+		log.Printf("DEBUG: Для занятия ID=%d загружено %d комментариев", sch.ID, len(sch.Comments))
 
-		pastSchedules = append(pastSchedules, sch)
+		dateKey := sch.StartTime.Format("02.01.2006")
+		groupedSchedules[dateKey] = append(groupedSchedules[dateKey], sch)
 	}
 
 	c.HTML(http.StatusOK, "teacher_comments", gin.H{
 		"Title":         "Комментарии к занятиям",
-		"PastSchedules": pastSchedules,
+		"PastSchedules": groupedSchedules,
 	})
 }
 
@@ -274,6 +364,7 @@ func CreateTeacherComment(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Ошибка преобразования user_id"})
 		return
 	}
+
 	var teacherID int
 	err = db.QueryRow(`SELECT id FROM teachers WHERE user_id = $1`, userID).Scan(&teacherID)
 	if err != nil {
@@ -281,10 +372,34 @@ func CreateTeacherComment(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	file, err := c.FormFile("attachment")
+	var filePath string
+	if err == nil {
+		uploadDir := "uploads/comments" // директория для хранения файлов комментариев
+		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка создания директории: " + err.Error()})
+			return
+		}
+		hash := sha256.New()
+		hash.Write([]byte(file.Filename))
+		hash.Write([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+		hashedPart := hex.EncodeToString(hash.Sum(nil))[:8]
+		extension := filepath.Ext(file.Filename)
+		filePath = filepath.Join(uploadDir, hashedPart+extension)
+
+		if err := c.SaveUploadedFile(file, filePath); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка загрузки файла: " + err.Error()})
+			return
+		}
+	} else if err != http.ErrMissingFile {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка обработки файла: " + err.Error()})
+		return
+	}
+
 	_, err = db.Exec(`
-		INSERT INTO comments (schedule_id, teacher_id, comment_text, created_at)
-		VALUES ($1, $2, $3, NOW())
-	`, scheduleID, teacherID, commentText)
+		INSERT INTO comments (schedule_id, teacher_id, comment_text, file_path, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+	`, scheduleID, teacherID, commentText, filePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ошибка при сохранении комментария: " + err.Error()})
 		return
@@ -346,9 +461,7 @@ func RenderTeacherRequests(c *gin.Context, db *sql.DB) {
 	})
 }
 
-// CreateTeacherRequest создаёт новый запрос на изменение расписания от учителя.
 func CreateTeacherRequest(c *gin.Context, db *sql.DB) {
-	// Извлекаем параметры из формы
 	scheduleIDStr := c.PostForm("schedule_id")
 	scheduleID, err := strconv.Atoi(scheduleIDStr)
 	if err != nil {
@@ -361,7 +474,6 @@ func CreateTeacherRequest(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Получаем user_id из контекста
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Пользователь не авторизован"})
@@ -373,7 +485,6 @@ func CreateTeacherRequest(c *gin.Context, db *sql.DB) {
 		return
 	}
 
-	// Вставляем новый запрос (в таблице requests предполагается поле user_id)
 	_, err = db.Exec(`
 		INSERT INTO requests (user_id, schedule_id, desired_change, status)
 		VALUES ($1, $2, $3, 'pending')

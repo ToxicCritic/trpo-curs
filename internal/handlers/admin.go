@@ -364,7 +364,8 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 	}
 	defer nonStudentRows.Close()
 
-	var nonStudents []models.User
+	var admins []models.User
+	var teachers []models.User
 	for nonStudentRows.Next() {
 		var u models.User
 		if err := nonStudentRows.Scan(&u.ID, &u.Username, &u.Email, &u.Role); err != nil {
@@ -374,7 +375,11 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 			})
 			return
 		}
-		nonStudents = append(nonStudents, u)
+		if u.Role == "admin" {
+			admins = append(admins, u)
+		} else if u.Role == "teacher" {
+			teachers = append(teachers, u)
+		}
 	}
 
 	var studentQuery string
@@ -431,7 +436,8 @@ func RenderManageUserRolesPage(c *gin.Context, db *sql.DB) {
 
 	c.HTML(http.StatusOK, "manage_users", gin.H{
 		"Title":        "Управление пользователями",
-		"NonStudents":  nonStudents,
+		"Admins":       admins,
+		"Teachers":     teachers,
 		"Students":     students,
 		"AllGroups":    allGroups,
 		"UserIDSearch": userIdSearch,

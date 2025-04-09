@@ -63,12 +63,12 @@
           <td>{{.ScheduleID}}</td>
           <td>{{.DesiredChange}}</td>
           <td>{{.Status}}</td>
-          <td>
+          <td style="display: flex; justify-content: space-evenly;">
             <form class="d-inline" method="POST" action="/admin/requests/{{.ID}}?_action=approve">
-              <button class="btn btn-sm btn-success">Подтвердить</button>
+              <button class="btn btn-sm btn-success" style="min-width: 120px;">Подтвердить</button>
             </form>
             <form class="d-inline" method="POST" action="/admin/requests/{{.ID}}?_action=reject">
-              <button class="btn btn-sm btn-secondary">Отклонить</button>
+              <button class="btn btn-sm btn-secondary" style="min-width: 120px;">Отклонить</button>
             </form>
           </td>
         </tr>

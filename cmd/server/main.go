@@ -31,7 +31,6 @@ func main() {
 		log.Fatalf("Ошибка при создании таблиц: %v", err)
 	}
 
-	// Инициализация шаблонов и установка DebugMode для вывода логов
 	web.InitTemplates()
 	gin.SetMode(gin.ReleaseMode)
 
@@ -50,7 +49,7 @@ func main() {
 		log.Fatalf("Ошибка получения поддиректории: %v", err)
 	}
 	r.StaticFS("/resources", http.FS(subResources))
-
+	r.Static("/uploads", "./uploads")
 	// Публичные маршруты
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index_guest", gin.H{
@@ -76,13 +75,21 @@ func main() {
 		user.GET("/logout", func(c *gin.Context) {
 			handlers.LogoutHandler(c)
 		})
-		user.GET("/schedules", func(c *gin.Context) {
-			handlers.RenderSchedulesPage(c, dbConn)
+	}
+
+	student := r.Group("/student")
+	student.Use(middleware.AuthMiddleware, middleware.RoleMiddleware("student"))
+	{
+		student.GET("/comments", func(c *gin.Context) {
+			handlers.RenderStudentComments(c, dbConn)
 		})
-		user.GET("/requests", func(c *gin.Context) {
+		student.GET("/schedules", func(c *gin.Context) {
+			handlers.RenderStudentSchedule(c, dbConn)
+		})
+		student.GET("/requests", func(c *gin.Context) {
 			handlers.RenderUserRequestsPage(c, dbConn)
 		})
-		user.POST("/requests", func(c *gin.Context) {
+		student.POST("/requests", func(c *gin.Context) {
 			handlers.CreateRequestHandler(c, dbConn)
 			c.Redirect(http.StatusSeeOther, "/user/requests")
 		})
