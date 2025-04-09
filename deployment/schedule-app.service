@@ -5,12 +5,9 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/root/apps/schedule-app
+# Читаем переменные окружения из внешнего файла (если файла нет, символ "-" позволяет продолжить)
+EnvironmentFile=-/root/apps/schedule-app/config.env
 ExecStart=/root/apps/schedule-app/scheduleApp
-Environment="DB_HOST=db"
-Environment="DB_PORT=5432"
-Environment="DB_USER=schedule_user"
-Environment="DB_PASSWORD=schedule_pass"
-Environment="DB_NAME=schedule_db"
 Restart=always
 RestartSec=5
 
