@@ -69,8 +69,8 @@ jobs:
 
       - name: Copy systemd service file
         run: |
-          scp -i deploy_key.pem -o StrictHostKeyChecking=no ${{ github.workspace }}/deployment/scheduleApp.service ${{ env.HOST }}:/tmp/scheduleApp.service
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "mv /tmp/scheduleApp.service /etc/systemd/system/scheduleApp.service"
+          scp -i deploy_key.pem -o StrictHostKeyChecking=no ${{ github.workspace }}/deployment/schedule-app.service ${{ env.HOST }}:/tmp/schedule-app.service
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "mv /tmp/schedule-app.service /etc/systemd/system/schedule-app.service"
 
       - name: Start application
         run: |
