@@ -77,6 +77,7 @@ type Comment struct {
 	ScheduleID  int       `json:"schedule_id"`
 	TeacherID   int       `json:"teacher_id"`
 	CommentText string    `json:"comment_text"`
+	FilePath    string    `json:"file_path"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 

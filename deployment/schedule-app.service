@@ -1,0 +1,14 @@
+[Unit]
+Description=ScheduleApp Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/apps/schedule-app
+EnvironmentFile=-/root/apps/schedule-app/config.env
+ExecStart=/root/apps/schedule-app/scheduleApp
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

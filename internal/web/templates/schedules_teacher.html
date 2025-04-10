@@ -26,11 +26,44 @@
       </div>
     </div>
   </nav>
+
   <div class="container mt-4">
     <h2>Ваше расписание</h2>
+
+    <!-- Форма фильтрации по группам и аудиториям -->
+    <form method="GET" action="/teacher/schedule" class="row g-3 mb-4">
+      <div class="col-md-3">
+        <label class="form-label">Фильтр по группе</label>
+        <select name="group" class="form-select">
+          <option value="">Все группы</option>
+          {{ range .AllGroups }}
+            <option value="{{ .ID }}" {{ if eq (printf "%d" .ID) $.GroupFilter }}selected{{ end }}>
+              {{ .Name }}
+            </option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Фильтр по аудитории</label>
+        <select name="classroom" class="form-select">
+          <option value="">Все аудитории</option>
+          {{ range .AllClassrooms }}
+            <option value="{{ .ID }}" {{ if eq (printf "%d" .ID) $.ClassroomFilter }}selected{{ end }}>
+              {{ .RoomNumber }}
+            </option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Применить фильтр</button>
+      </div>
+    </form>
+
     {{ if .Error }}
       <div class="alert alert-danger">{{ .Error }}</div>
     {{ end }}
+
+    <!-- Вывод расписания по датам -->
     {{ if .Schedules }}
       {{ range $date, $schedules := .Schedules }}
         <h3>{{ dayFullDate $date }}</h3>
@@ -61,6 +94,7 @@
       <p>Пока нет занятий.</p>
     {{ end }}
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

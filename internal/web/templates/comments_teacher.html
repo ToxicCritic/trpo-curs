@@ -30,44 +30,58 @@
   </nav>
   
   <div class="container mt-4">
-    <h2>Оставьте комментарии к проведённым занятиям</h2>
+    <h2>Комментарии к занятиям</h2>
     {{ if .Error }}
       <div class="alert alert-danger">{{ .Error }}</div>
     {{ end }}
     
     {{ if .PastSchedules }}
-      {{ range .PastSchedules }}
-        <div class="card mb-3">
-          <div class="card-header">
-            <!-- Сначала выводится дата, затем интервал времени -->
-            {{ formatDate .StartTime }}: {{ timeHHMM .StartTime }} - {{ timeHHMM .EndTime }} — {{ .SubjectName }} / {{ .RoomNumber }}
+      {{ range $date, $schedules := .PastSchedules }}
+        <h3>{{ $date }}</h3>
+        {{ range $i, $sch := $schedules }}
+          <div class="card mb-3">
+            <div class="card-header">
+              {{ timeHHMM $sch.StartTime }} - {{ timeHHMM $sch.EndTime }}
+              — {{ $sch.SubjectName }} / {{ $sch.RoomNumber }}
+              {{ if $sch.GroupNames }} / {{ $sch.GroupNames }}
+              {{ end }}
+            </div>
+            <div class="card-body">
+              {{ if $sch.Comments }}
+                <ul class="list-group mb-3">
+                  {{ range $sch.Comments }}
+                    <li class="list-group-item">
+                      <small class="text-muted">{{ formatDate .CreatedAt }} {{ timeHHMM .CreatedAt }}</small>
+                      <br>
+                      {{ .CommentText }}
+                      {{ if .FilePath }}
+                        <br>
+                        <a href="/{{ .FilePath }}" target="_blank">Скачать вложение</a>
+                      {{ end }}
+                    </li>
+                  {{ end }}
+                </ul>
+              {{ else }}
+                <p class="mb-3">Комментариев пока нет.</p>
+              {{ end }}
+              <!-- Форма для добавления нового комментария -->
+              <form method="POST" action="/teacher/comments/{{ $sch.ID }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                  <label class="form-label">Ваш комментарий</label>
+                  <textarea name="comment" class="form-control" rows="3" placeholder="Введите ваш комментарий..." required></textarea>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Прикрепить файл (опционально)</label>
+                  <input type="file" name="attachment" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary">Сохранить комментарий</button>
+              </form>
+            </div>
           </div>
-          <div class="card-body">
-            <!-- Вывод ранее оставленных комментариев -->
-            {{ if .Comments }}
-              <ul class="list-group mb-3">
-                {{ range .Comments }}
-                  <li class="list-group-item">
-                    <small class="text-muted">{{ formatDate .CreatedAt }} {{ timeHHMM .CreatedAt }}</small> – {{ .CommentText }}
-                  </li>
-                {{ end }}
-              </ul>
-            {{ else }}
-              <p class="mb-3">Комментариев пока нет.</p>
-            {{ end }}
-            <!-- Форма добавления нового комментария -->
-            <form method="POST" action="/teacher/comments/{{ .ID }}">
-              <div class="mb-3">
-                <label class="form-label">Ваш комментарий</label>
-                <textarea name="comment" class="form-control" rows="3" placeholder="Введите ваш комментарий..." required></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary">Сохранить комментарий</button>
-            </form>
-          </div>
-        </div>
+        {{ end }}
       {{ end }}
     {{ else }}
-      <p>Нет проведённых занятий, для которых можно оставить комментарии.</p>
+      <p>Нет проведённых занятий для отображения комментариев.</p>
     {{ end }}
   </div>
   

@@ -1,0 +1,105 @@
+{{ define "schedules_user" }}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Расписание (Студент)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/student/schedules">
+        <img src="/resources/logo.png" alt="Логотип" style="height:40px;">
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbarStudent" aria-controls="navbarStudent"
+              aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarStudent">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/student/schedules">Расписание</a></li>
+          <li class="nav-item"><a class="nav-link" href="/student/comments">Комментарии преподавателей</a></li>
+          <li class="nav-item"><a class="nav-link" href="/logout">Выйти</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  
+  <div class="container mt-4">
+    <h2>Расписание занятий</h2>
+    {{ if .Error }}
+      <div class="alert alert-danger">{{ .Error }}</div>
+    {{ end }}
+
+    <!-- Форма фильтрации по преподавателям и предметам -->
+    <form method="GET" action="/student/schedules" class="row g-3 mb-4">
+      <div class="col-md-3">
+        <label class="form-label">Фильтр по преподавателю</label>
+        <select name="teacher" class="form-select">
+          <option value="">Все преподаватели</option>
+          {{ range .AllTeachers }}
+            <option value="{{ .ID }}" {{ if eq (printf "%d" .ID) $.TeacherFilter }}selected{{ end }}>
+              {{ .Name }}
+            </option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Фильтр по предмету</label>
+        <select name="subject" class="form-select">
+          <option value="">Все предметы</option>
+          {{ range .AllSubjects }}
+            <option value="{{ .ID }}" {{ if eq (printf "%d" .ID) $.SubjectFilter }}selected{{ end }}>
+              {{ .Name }}
+            </option>
+          {{ end }}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Применить фильтр</button>
+      </div>
+    </form>
+
+    <!-- Вывод расписания по датам -->
+    {{ if .Schedules }}
+      {{ range $date, $schedules := .Schedules }}
+        <h3>{{ dayFullDate $date }}</h3>
+        <table class="table table-bordered table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Группа</th>
+              <th>Предмет</th>
+              <th>Преподаватель</th>
+              <th>Аудитория</th>
+              <th>Начало</th>
+              <th>Окончание</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range $schedules }}
+              <tr>
+                <td>{{ .ID }}</td>
+                <td>{{ .GroupNames }}</td>
+                <td>{{ .SubjectName }}</td>
+                <td>{{ .TeacherName }}</td>
+                <td>{{ .RoomNumber }}</td>
+                <td>{{ timeHHMM .StartTime }}</td>
+                <td>{{ timeHHMM .EndTime }}</td>
+              </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      {{ end }}
+    {{ else }}
+      <p>Пока нет занятий.</p>
+    {{ end }}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{ end }}
