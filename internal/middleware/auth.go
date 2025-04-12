@@ -58,10 +58,8 @@ func AuthMiddleware(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	// Логируем полученные claims
 	log.Printf("DEBUG: Parsed JWT claims: UserID=%d, Role=%q", claims.UserID, claims.Role)
 
-	// Если роль отсутствует, можно задать дефолтное значение или вернуть ошибку.
 	if claims.Role == "" {
 		log.Println("DEBUG: Поле Role отсутствует в JWT claims")
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Role not found"})

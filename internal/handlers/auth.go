@@ -76,7 +76,6 @@ func LoginFormHandler(c *gin.Context, db *sql.DB) {
 }
 
 func RegisterFormHandler(c *gin.Context, db *sql.DB) {
-	// Передаем группы и отделы, чтобы в случае ошибки при заполнении они были доступны в шаблоне.
 	groups, err := loadAllGroups(db)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "register", gin.H{
@@ -160,7 +159,6 @@ func RegisterFormHandler(c *gin.Context, db *sql.DB) {
 			return
 		}
 	} else if role == "teacher" {
-		// Для преподавателя извлекаем department_id из формы.
 		departmentIDStr := c.PostForm("department_id")
 		var departmentID int
 		if departmentIDStr != "" {

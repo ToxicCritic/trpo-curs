@@ -48,14 +48,6 @@ type Schedule struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-type Request struct {
-	ID            int    `json:"id"`
-	UserID        int    `json:"user_id"`
-	ScheduleID    int    `json:"schedule_id"`
-	DesiredChange string `json:"desired_change"`
-	Status        string `json:"status"`
-}
-
 type ScheduleDisplay struct {
 	ID          int       `json:"id"`
 	SubjectID   int       `json:"subject_id"`
@@ -70,6 +62,14 @@ type ScheduleDisplay struct {
 	EndTime     time.Time `json:"end_time"`
 	CreatedAt   time.Time `json:"created_at"`
 	Comments    []Comment
+}
+
+type Request struct {
+	ID            int    `json:"id"`
+	UserID        int    `json:"user_id"`
+	ScheduleID    int    `json:"schedule_id"`
+	DesiredChange string `json:"desired_change"`
+	Status        string `json:"status"`
 }
 
 type Comment struct {

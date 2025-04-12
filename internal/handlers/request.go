@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Студент/преподаватель отправляет запрос на изменение расписания
 func CreateRequestHandler(c *gin.Context, db *sql.DB) {
 	userIDVal, _ := c.Get("user_id")
 	roleVal, _ := c.Get("role")
@@ -16,12 +15,10 @@ func CreateRequestHandler(c *gin.Context, db *sql.DB) {
 	role, _ := roleVal.(string)
 	userID, _ := userIDVal.(int)
 
-	// teacher/student
 	if role != "teacher" && role != "student" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only teacher or student can create requests"})
 		return
 	}
-
 	var body struct {
 		ScheduleID    int    `json:"schedule_id"`
 		DesiredChange string `json:"desired_change"`
@@ -30,7 +27,6 @@ func CreateRequestHandler(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
-
 	var requestID int
 	query := `
         INSERT INTO requests (user_id, schedule_id, desired_change, status)
@@ -49,7 +45,66 @@ func CreateRequestHandler(c *gin.Context, db *sql.DB) {
 	})
 }
 
-// GetAllRequestsHandler – администратор просматривает все запросы
+func ProcessRequestFormHandler(c *gin.Context, db *sql.DB, action string) {
+	reqID := c.Param("id")
+	status := ""
+	if action == "approve" {
+		status = "approved"
+	} else if action == "reject" {
+		status = "rejected"
+	} else {
+		c.HTML(http.StatusBadRequest, "requests_admin", gin.H{
+			"Title": "Запросы (Admin)",
+			"Error": "Неверное действие",
+		})
+		return
+	}
+
+	_, err := db.Exec(`UPDATE requests SET status=$1 WHERE id=$2`, status, reqID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "requests_admin", gin.H{
+			"Title": "Запросы (Admin)",
+			"Error": err.Error(),
+		})
+		return
+	}
+}
+
+func RenderAdminRequestsPage(c *gin.Context, db *sql.DB) {
+	rows, err := db.Query(`
+        SELECT id, user_id, schedule_id, desired_change, status
+        FROM requests
+				WHERE status != 'rejected'
+        ORDER BY id
+    `)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "requests_admin", gin.H{
+			"Title": "Запросы (Admin)",
+			"Error": err.Error(),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var requests []models.Request
+	for rows.Next() {
+		var r models.Request
+		if err := rows.Scan(&r.ID, &r.UserID, &r.ScheduleID, &r.DesiredChange, &r.Status); err != nil {
+			c.HTML(http.StatusInternalServerError, "requests_admin", gin.H{
+				"Title": "Запросы (Admin)",
+				"Error": err.Error(),
+			})
+			return
+		}
+		requests = append(requests, r)
+	}
+
+	c.HTML(http.StatusOK, "requests_admin", gin.H{
+		"Title":    "Запросы (Admin)",
+		"Requests": requests,
+	})
+}
+
 func GetAllRequestsHandler(c *gin.Context, db *sql.DB) {
 	rows, err := db.Query(`
         SELECT id, user_id, schedule_id, desired_change, status

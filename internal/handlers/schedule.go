@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -109,4 +110,160 @@ func UpdateScheduleHandler(c *gin.Context, db *sql.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Schedule updated"})
+}
+
+func UpdateScheduleFormHandler(c *gin.Context, db *sql.DB) {
+	scheduleID := c.Param("id")
+
+	subjectID, _ := strconv.Atoi(c.PostForm("subject_id"))
+	teacherID, _ := strconv.Atoi(c.PostForm("teacher_id"))
+	classroomID, _ := strconv.Atoi(c.PostForm("classroom_id"))
+	groupID, _ := strconv.Atoi(c.PostForm("group_id"))
+	startTimeStr := c.PostForm("start_time")
+	if startTimeStr == "" {
+		c.Set("Alarm", "Поле времени начала не заполнено.")
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	layout := "2006-01-02T15:04"
+	startTime, err := time.Parse(layout, startTimeStr)
+	if err != nil {
+		c.Set("Alarm", "Неверный формат времени начала: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	endTime := startTime.Add(90 * time.Minute)
+
+	idInt, err := strconv.Atoi(scheduleID)
+	if err != nil {
+		c.Set("Alarm", "Неверный ID занятия")
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+
+	collision, err := CheckScheduleCollision(db, teacherID, classroomID, groupID, startTime, endTime, idInt)
+	if err != nil {
+		c.Set("Alarm", "Ошибка проверки коллизий: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	if collision {
+		c.Set("Alarm", "Коллизия обнаружена: у преподавателя, в аудитории или у группы уже существует пересекающееся занятие.")
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+
+	_, err = db.Exec(`
+        UPDATE schedule
+        SET subject_id=$1, teacher_id=$2, classroom_id=$3, start_time=$4, end_time=$5
+        WHERE id=$6
+    `, subjectID, teacherID, classroomID, startTime, endTime, scheduleID)
+	if err != nil {
+		c.Set("Alarm", "Ошибка обновления расписания: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	c.Set("Alarm", "Расписание успешно обновлено.")
+	RenderAdminSchedulesPageWithFilters(c, db)
+}
+
+func CreateScheduleFormHandler(c *gin.Context, db *sql.DB) {
+	subjectID, err1 := strconv.Atoi(c.PostForm("subject_id"))
+	teacherID, err2 := strconv.Atoi(c.PostForm("teacher_id"))
+	classroomID, err3 := strconv.Atoi(c.PostForm("classroom_id"))
+	groupID, err4 := strconv.Atoi(c.PostForm("group_id"))
+	startTimeStr := c.PostForm("start_time")
+
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil || startTimeStr == "" {
+		c.Set("Alarm", "Неверные данные формы")
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+
+	layout := "2006-01-02T15:04"
+	startTime, err := time.Parse(layout, startTimeStr)
+	if err != nil {
+		c.Set("Alarm", "Неверный формат времени начала: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	endTime := startTime.Add(90 * time.Minute)
+
+	collision, err := CheckScheduleCollision(db, teacherID, classroomID, groupID, startTime, endTime, 0)
+	if err != nil {
+		c.Set("Alarm", "Ошибка проверки коллизий: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	if collision {
+		c.Set("Alarm", "Коллизия обнаружена: у преподавателя, в аудитории или у группы уже существует пересекающееся занятие.")
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+
+	insertQuery := `
+        INSERT INTO schedule (subject_id, teacher_id, classroom_id, start_time, end_time)
+        VALUES ($1, $2, $3, $4, $5) RETURNING id
+    `
+	stmt, err := db.Prepare(insertQuery)
+	if err != nil {
+		log.Printf("ERROR: Не удалось подготовить запрос: %v", err)
+		c.Set("Alarm", "Ошибка подготовки запроса: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+	defer stmt.Close()
+
+	var scheduleID int
+	err = stmt.QueryRow(subjectID, teacherID, classroomID, startTime, endTime).Scan(&scheduleID)
+	if err != nil {
+		c.Set("Alarm", "Ошибка при создании записи: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+
+	_, err = db.Exec(`INSERT INTO schedule_groups (schedule_id, group_id) VALUES ($1, $2)`, scheduleID, groupID)
+	if err != nil {
+		c.Set("Alarm", "Ошибка создания связи с группой: "+err.Error())
+		RenderAdminSchedulesPageWithFilters(c, db)
+		return
+	}
+
+	c.Set("Alarm", "Занятие успешно создано.")
+	RenderAdminSchedulesPageWithFilters(c, db)
+}
+
+func GetScheduleJSON(c *gin.Context, db *sql.DB) {
+	scheduleID := c.Param("id")
+
+	query := `
+		SELECT 
+			s.id,
+			s.subject_id,
+			s.teacher_id,
+			s.classroom_id,
+			s.start_time,
+			COALESCE(MIN(g.id), 0) AS group_id
+		FROM schedule s
+		LEFT JOIN schedule_groups sg ON s.id = sg.schedule_id
+		LEFT JOIN groups g ON g.id = sg.group_id
+		WHERE s.id = $1
+		GROUP BY s.id, s.subject_id, s.teacher_id, s.classroom_id, s.start_time
+	`
+	row := db.QueryRow(query, scheduleID)
+
+	var obj struct {
+		ID          int       `json:"id"`
+		SubjectID   int       `json:"subject_id"`
+		TeacherID   int       `json:"teacher_id"`
+		ClassroomID int       `json:"classroom_id"`
+		GroupID     int       `json:"group_id"`
+		StartTime   time.Time `json:"start_time"`
+	}
+	err := row.Scan(&obj.ID, &obj.SubjectID, &obj.TeacherID, &obj.ClassroomID, &obj.StartTime, &obj.GroupID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, obj)
 }

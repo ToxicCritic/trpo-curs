@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"io/fs"
 	"log"
 	"net/http"
 
@@ -37,20 +36,6 @@ func main() {
 	r := gin.Default()
 	r.SetHTMLTemplate(web.Tmpl)
 
-	// Подключаем статику
-	subStatic, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatalf("Ошибка получения поддиректории: %v", err)
-	}
-	r.StaticFS("/static", http.FS(subStatic))
-
-	subResources, err := fs.Sub(resourceFiles, "resources")
-	if err != nil {
-		log.Fatalf("Ошибка получения поддиректории: %v", err)
-	}
-	r.StaticFS("/resources", http.FS(subResources))
-	r.Static("/uploads", "./uploads")
-	// Публичные маршруты
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index_guest", gin.H{
 			"Title": "Главная страница (Гость)",
